@@ -26,21 +26,48 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Add Windows SDK to PATH
+    - name: Add Windows SDK to PATH and set compatible SDK version
       run: |
-        # Windows SDK가 PATH에 없으면 추가
-        $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64"
-        if (Test-Path $sdkPath) {
-          echo "$sdkPath" >> $env:GITHUB_PATH
+        # 사용 가능한 Windows SDK 버전들 확인
+        echo "=== 설치된 Windows SDK 버전들 ==="
+        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name
+        $sdkVersions | ForEach-Object { echo "  - $($_.Name)" }
+        
+        # 안정적인 SDK 버전 선택 (역순으로 확인하여 가장 적절한 버전 찾기)
+        $preferredVersions = @("10.0.22621.0", "10.0.22000.0", "10.0.19041.0", "10.0.18362.0", "10.0.17763.0")
+        $selectedSdk = $null
+        
+        foreach ($version in $preferredVersions) {
+          $sdkIncludePath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$version"
+          if (Test-Path $sdkIncludePath) {
+            $selectedSdk = $version
+            echo "선택된 Windows SDK: $version"
+            break
+          }
+        }
+        
+        # 찾지 못했으면 첫 번째 사용 가능한 버전 사용
+        if (-not $selectedSdk -and $sdkVersions) {
+          $selectedSdk = $sdkVersions[0].Name
+          echo "기본 Windows SDK 사용: $selectedSdk"
+        }
+        
+        if ($selectedSdk) {
+          # 환경 변수로 SDK 버전 강제 설정
+          echo "WindowsSDKVersion=$selectedSdk" >> $env:GITHUB_ENV
+          echo "WINDOWS_SDK_VERSION=$selectedSdk" >> $env:GITHUB_ENV
+          
+          # SDK 경로를 PATH에 추가
+          $sdkBinPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64"
+          if (Test-Path $sdkBinPath) {
+            echo "$sdkBinPath" >> $env:GITHUB_PATH
+          }
         }
         
         # Visual Studio 경로 확인
         echo "=== Visual Studio 설치 확인 ==="
         Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
         Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
-        
-        echo "=== Windows SDK 확인 ==="
-        Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -ErrorAction SilentlyContinue
 
     - name: Cache dependencies
       uses: actions/cache@v4
@@ -74,8 +101,16 @@ jobs:
         # Set platform for MSBuild
         $msbuildPlatform = if ("${{ matrix.platform }}" -eq "x86") { "Win32" } else { "x64" }
         
-        # Build the solution
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform
+        # 호환 가능한 Windows SDK 버전으로 빌드
+        $sdkVersion = $env:WINDOWS_SDK_VERSION
+        if (-not $sdkVersion) {
+          $sdkVersion = "10.0.22621.0"  # 기본값
+        }
+        
+        echo "사용할 Windows SDK 버전: $sdkVersion"
+        
+        # Build the solution with specific SDK version
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
