@@ -184,7 +184,8 @@ Write-Host "추가 의존성 빌드 중..." -ForegroundColor Yellow
 $iniparserDir = Join-Path $depsDir "ini-parser"
 if (-not (Test-Path $iniparserDir)) {
     Write-Host "INI 파서 다운로드 중..." -ForegroundColor Cyan
-    git clone https://github.com/snowie2000/ini-parser.git $iniparserDir
+    # GitHub Actions에서 인증 문제 우회를 위해 토큰 사용
+    git clone https://github.com/ndevilla/iniparser.git $iniparserDir
 }
 
 # INI 파서는 .NET/C# 라이브러리이므로 MacType에서 직접 사용하지 않을 수 있음
@@ -226,20 +227,38 @@ $includeDir = Join-Path $depsDir "include"
 New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
 
 if (Test-Path $iniparserDir) {
-    $iniparserSrcDir = Join-Path $iniparserDir "src"
-    if (Test-Path $iniparserSrcDir) {
-        $iniparserHeaders = @("iniparser.h", "dictionary.h")
-        foreach ($header in $iniparserHeaders) {
-            $sourcePath = Join-Path $iniparserSrcDir $header
-            if (Test-Path $sourcePath) {
-                Copy-Item $sourcePath $includeDir -Force
-                Write-Host "IniParser 헤더 복사: $header" -ForegroundColor Green
-            } else {
-                Write-Host "경고: IniParser 헤더 ($header)를 찾을 수 없습니다: $sourcePath" -ForegroundColor Yellow
+    # ndevilla/iniparser의 헤더 파일은 루트 디렉터리와 src 디렉터리에 있을 수 있음
+    $iniparserHeaders = @("iniparser.h", "dictionary.h")
+    $possibleDirs = @($iniparserDir, (Join-Path $iniparserDir "src"))
+    
+    foreach ($dir in $possibleDirs) {
+        if (Test-Path $dir) {
+            foreach ($header in $iniparserHeaders) {
+                $sourcePath = Join-Path $dir $header
+                if (Test-Path $sourcePath) {
+                    Copy-Item $sourcePath $includeDir -Force
+                    Write-Host "IniParser 헤더 복사: $header (from $dir)" -ForegroundColor Green
+                }
             }
         }
+    }
+    
+    # 헤더가 복사되었는지 확인
+    $copiedHeaders = @()
+    foreach ($header in $iniparserHeaders) {
+        $targetPath = Join-Path $includeDir $header
+        if (Test-Path $targetPath) {
+            $copiedHeaders += $header
+        }
+    }
+    
+    if ($copiedHeaders.Count -eq 0) {
+        Write-Host "경고: IniParser 헤더를 찾을 수 없습니다. 디렉터리 구조를 확인합니다..." -ForegroundColor Yellow
+        Get-ChildItem $iniparserDir -Recurse -Name "*.h" | Select-Object -First 10 | ForEach-Object {
+            Write-Host "  발견된 헤더: $_" -ForegroundColor Cyan
+        }
     } else {
-        Write-Host "경고: IniParser src 디렉터리를 찾을 수 없습니다: $iniparserSrcDir" -ForegroundColor Yellow
+        Write-Host "IniParser 헤더 복사 완료: $($copiedHeaders -join ', ')" -ForegroundColor Green
     }
 } else {
     Write-Host "경고: IniParser 디렉터리를 찾을 수 없습니다: $iniparserDir" -ForegroundColor Yellow
