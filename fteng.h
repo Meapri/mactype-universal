@@ -17,7 +17,7 @@ extern BOOL g_ccbCache;
 extern BOOL g_ccbIndividual;
 extern FTC_Manager    cache_man;
 
-typedef set<CBitmapCache*> CTLSDCArray;
+typedef std::set<CBitmapCache*> CTLSDCArray;
 extern CTLSDCArray TLSDCArray;
 
 LOGFONTW* GetFontNameFromFile(LPCTSTR Filename);
@@ -54,7 +54,7 @@ struct CFontSetCache
 
 struct myfont
 {
-	wstring name;
+	std::wstring name;
 	int hash;
 	bool operator < (const myfont& mf) const {
 		return name==mf.name? hash<mf.hash: name<mf.name;
@@ -201,7 +201,7 @@ public:
 static INT_PTR NULL_INT = NULL;
 class FreeTypeFontCache : public FreeTypeMruCounter, public FreeTypeGCCounter
 {
-	typedef map<int, FreeTypeCharData*> GlyphCache;
+	typedef std::map<int, FreeTypeCharData*> GlyphCache;
 
 private:
 	int  m_px;
@@ -311,8 +311,8 @@ private:
 	LONG volatile count;
 	CFontSettings m_set;
 	StringHashFont m_hash;
-	wstring	m_fullname, m_familyname, m_stylename;
-	typedef map<UINT, FreeTypeFontCache*>	CacheArray;
+	std::wstring	m_fullname, m_familyname, m_stylename;
+	typedef std::map<UINT, FreeTypeFontCache*>	CacheArray;
 	CacheArray m_cache;
 	//快速链接
 	FTC_FaceID face_id_link[CFontLinkInfo::FONTMAX * 2 + 1];
@@ -366,11 +366,11 @@ public:
 		}
 		return m_hashinting;
 	}
-	wstring GetFullName() {return m_fullname;};
+	std::wstring GetFullName() {return m_fullname;};
 	bool m_isSimSun;
 	bool IsPixel;
 	UINT getCacheHash(int px, int weight, bool italic, int width) {return ((px<<20)|(width<<8)|(weight<<1)|(int)italic); };	//计算一个hash值来定位cache
-	FreeTypeFontInfo(int n, LPCTSTR name, int weight, bool italic, int mru, wstring fullname, wstring familyname)
+	FreeTypeFontInfo(int n, LPCTSTR name, int weight, bool italic, int mru, std::wstring fullname, std::wstring familyname)
 		: m_id(n), m_weight(weight), m_italic(italic), m_OS2Table(NULL), IsPixel(false)
 		, FreeTypeMruCounter(mru), m_isSimSun(false), m_ggoFont(NULL), m_linkinited(false), m_linknum(0), m_os2Weight(0)
 		, m_SimSunID(0), count(1), m_fullname(fullname), m_familyname(familyname), m_hashinting(3), m_nFontFamily(0)
@@ -403,15 +403,15 @@ public:
 				memset(otm, 0, nSize);
 				otm->otmSize = nSize;
 				GetOutlineTextMetrics(hdc, nSize, otm);
-				m_fullname = wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpFullName));
+				m_fullname = std::wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpFullName));
 				TCHAR * localname = (LPWSTR)((DWORD_PTR)otm+(DWORD_PTR)otm->otmpFamilyName);
-				m_stylename = wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpStyleName));
+				m_stylename = std::wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpStyleName));
 				m_fullname = MakeUniqueFontName(m_fullname, localname, m_stylename);
 
 				TCHAR buff[LF_FACESIZE+1];				
 				GetFontLocalName(localname, buff);
 				m_nFontFamily = otm->otmTextMetrics.tmPitchAndFamily & 0xF0;	//获取字体家族，家族对应使用什么默认链接字体
-				m_familyname = (wstring)buff;
+				m_familyname = (std::wstring)buff;
 				m_set = pSettings->FindIndividual(m_familyname.c_str());
 				m_ftWeight = CalcBoldWeight(/*weight*/700);
 				m_hash = StringHashFont(name);
@@ -499,7 +499,7 @@ public:
 
 	INT_PTR GetId() const { return m_id; }
 	LPCTSTR GetName() const { return m_hash.c_str(); }
-	wstring GetStyleName() const { return m_stylename; }
+	std::wstring GetStyleName() const { return m_stylename; }
 	int GetFontWeight() const { return m_weight; }
 	int GetExactBoldWeight() const {return m_set.GetBoldWeight(); }
 	int GetFTWeight() const { return m_ftWeight; }
@@ -528,9 +528,9 @@ class FreeTypeFontEngine : public FreeTypeGCCounter
 {
 private:
 	//typedef CArray<FreeTypeFontInfo*>	FontListArray;
-	typedef map<myfont, FreeTypeFontInfo*> FontMap;
-	typedef map<wstring, FreeTypeFontInfo*> FullNameMap;
-	typedef vector<FreeTypeFontInfo*> FontList;
+	typedef std::map<myfont, FreeTypeFontInfo*> FontMap;
+	typedef std::map<std::wstring, FreeTypeFontInfo*> FullNameMap;
+	typedef std::vector<FreeTypeFontInfo*> FontList;
 	//FontListArray	m_arrFontList;
 	int				m_nMaxFaces;
 	int				m_nMemUsed;
@@ -658,7 +658,7 @@ private:
 	void*	m_pMapping;
 	DWORD	m_dwSize;
 	FT_Face	m_ftFace;
-	wstring m_name;
+	std::wstring m_name;
 	FT_StreamRec m_ftStream;
 
 	FreeTypeSysFontData()
