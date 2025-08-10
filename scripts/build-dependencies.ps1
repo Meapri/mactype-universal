@@ -211,7 +211,7 @@ if (-not $iniparserSln) {
 try {
     if ($Platform -eq "x86") {
         # Windows SDK 버전 문제 해결을 위해 최신 SDK로 재타겟팅
-        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -p:WindowsTargetPlatformVersion=10.0.22621.0 -p:PlatformToolset=v143 -p:VCTargetsPath="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170" -v:minimal
         # 가능한 출력 경로들
         $possiblePaths = @(
             "src/IniParser/bin/x86/$Configuration/iniparser.lib",
@@ -223,7 +223,7 @@ try {
         )
         $targetLib = Join-Path $libDir "iniparser.lib"
     } else {
-        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -p:PlatformToolset=v143 -p:VCTargetsPath="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170" -v:minimal
         $possiblePaths = @(
             "src/IniParser/bin/x64/$Configuration/iniparser.lib",
             "IniParser/bin/x64/$Configuration/iniparser.lib", 
@@ -305,7 +305,48 @@ if ($Platform -eq "x86") {
     }
     
     if (-not $projectFile) {
-        Write-Host "wow64ext 프로젝트 파일을 찾을 수 없어 건너뜁니다" -ForegroundColor Yellow
+        Write-Host "프로젝트 파일을 찾을 수 없습니다. Makefile 확인 중..." -ForegroundColor Yellow
+        
+        # Makefile로 빌드 시도
+        if (Test-Path "src") {
+            Set-Location "src"
+            if (Test-Path "Makefile") {
+                Write-Host "Makefile을 사용하여 wow64ext 빌드 시도..." -ForegroundColor Cyan
+                try {
+                    nmake
+                    
+                    # 생성된 .lib 파일 찾기
+                    $possibleLibs = @(
+                        "wow64ext.lib",
+                        "obj/wow64ext.lib",
+                        "../wow64ext.lib"
+                    )
+                    
+                    $foundLib = $null
+                    foreach ($libPath in $possibleLibs) {
+                        if (Test-Path $libPath) {
+                            $foundLib = $libPath
+                            break
+                        }
+                    }
+                    
+                    if ($foundLib) {
+                        $targetLib = Join-Path $libDir "wow64ext.lib"
+                        Copy-Item $foundLib $targetLib -Force
+                        Write-Host "wow64ext 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
+                    } else {
+                        Write-Host "wow64ext 라이브러리 파일을 찾을 수 없습니다" -ForegroundColor Yellow
+                    }
+                } catch {
+                    Write-Host "Makefile 빌드 실패: $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "wow64ext Makefile을 찾을 수 없어 건너뜁니다" -ForegroundColor Yellow
+            }
+            Set-Location $wow64extDir
+        } else {
+            Write-Host "wow64ext src 폴더를 찾을 수 없어 건너뜁니다" -ForegroundColor Yellow
+        }
     } else {
         try {
             msbuild $projectFile -p:Configuration=$Configuration -p:Platform=Win32 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
