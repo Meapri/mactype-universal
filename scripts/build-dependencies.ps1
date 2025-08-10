@@ -50,15 +50,44 @@ if (Test-Path $patchFile) {
     }
 }
 
-# FreeType 빌드
+# FreeType 빌드 (문서에 따라 multi-thread release로 빌드)
 $freetypeSln = "builds/windows/vc2010/freetype.sln"
 if ($Platform -eq "x86") {
-    msbuild $freetypeSln -p:Configuration=$Configuration -p:Platform=Win32 -v:minimal
-    $sourceLib = "objs/Win32/$Configuration/freetype.lib"
+    Write-Host "FreeType x86 빌드 중 (multi-thread release)..." -ForegroundColor Yellow
+    msbuild $freetypeSln -p:Configuration="Release Multithreaded" -p:Platform=Win32 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+    
+    # 가능한 출력 경로들 확인
+    $possiblePaths = @(
+        "objs/Win32/Release Multithreaded/freetype.lib",
+        "objs/Win32/Release/freetype.lib", 
+        "objs/Win32/$Configuration/freetype.lib"
+    )
+    
+    $sourceLib = $null
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $sourceLib = $path
+            break
+        }
+    }
     $targetLib = Join-Path $libDir "freetype.lib"
 } else {
-    msbuild $freetypeSln -p:Configuration=$Configuration -p:Platform=x64 -v:minimal
-    $sourceLib = "objs/x64/$Configuration/freetype.lib"
+    Write-Host "FreeType x64 빌드 중 (multi-thread release)..." -ForegroundColor Yellow
+    msbuild $freetypeSln -p:Configuration="Release Multithreaded" -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+    
+    $possiblePaths = @(
+        "objs/x64/Release Multithreaded/freetype.lib",
+        "objs/x64/Release/freetype.lib",
+        "objs/x64/$Configuration/freetype.lib"
+    )
+    
+    $sourceLib = $null
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $sourceLib = $path
+            break
+        }
+    }
     $targetLib = Join-Path $libDir "freetype64.lib"
 }
 
@@ -259,7 +288,106 @@ if ($Platform -eq "x86") {
     Set-Location $rootDir
 }
 
-# 4. Detours 빌드
+# 4. EasyHook 빌드 (문서에 따라 EasyHook 또는 Detours 중 선택 가능)
+Write-Host "EasyHook 빌드 중..." -ForegroundColor Yellow
+$easyhookDir = Join-Path $depsDir "easyhook"
+
+if (!(Test-Path $easyhookDir)) {
+    Write-Host "EasyHook 소스 다운로드 중..."
+    git clone https://github.com/EasyHook/EasyHook.git $easyhookDir
+}
+
+Set-Location $easyhookDir
+
+# EasyHook 프로젝트 구조 확인
+Write-Host "EasyHook 프로젝트 구조 확인 중..."
+Get-ChildItem -Name | Write-Host
+
+# EasyHookDll 프로젝트 찾기 (문서에 따르면 EasyHookDll만 필요)
+$possibleProjectFiles = @(
+    "EasyHook.sln",
+    "EasyHookDll/EasyHookDll.vcxproj",
+    "NetFX*/EasyHookDll.sln",
+    "*.sln"
+)
+
+$easyhookBuilt = $false
+$projectFile = $null
+foreach ($pattern in $possibleProjectFiles) {
+    $files = Get-ChildItem -Filter $pattern -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($files) {
+        $projectFile = $files.FullName
+        Write-Host "EasyHook 프로젝트 파일 발견: $projectFile" -ForegroundColor Green
+        break
+    }
+}
+
+if ($projectFile) {
+    try {
+        if ($Platform -eq "x86") {
+            Write-Host "EasyHook x86 빌드 중..." -ForegroundColor Yellow
+            msbuild $projectFile -p:Configuration=$Configuration -p:Platform=Win32 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+            
+            # EasyHook 출력 파일 찾기 (easyhook32.lib)
+            $possiblePaths = @(
+                "EasyHookDll/Win32/$Configuration/EasyHookDll.lib",
+                "*/Win32/$Configuration/EasyHookDll.lib",
+                "Win32/$Configuration/EasyHookDll.lib",
+                "$Configuration/EasyHookDll.lib"
+            )
+            
+            $sourceLib = $null
+            foreach ($path in $possiblePaths) {
+                $foundFiles = Get-ChildItem -Path $path -Recurse -ErrorAction SilentlyContinue
+                if ($foundFiles) {
+                    $sourceLib = $foundFiles[0].FullName
+                    break
+                }
+            }
+            
+            $targetLib = Join-Path $libDir "easyhook32.lib"
+        } else {
+            Write-Host "EasyHook x64 빌드 중..." -ForegroundColor Yellow
+            msbuild $projectFile -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+            
+            $possiblePaths = @(
+                "EasyHookDll/x64/$Configuration/EasyHookDll.lib",
+                "*/x64/$Configuration/EasyHookDll.lib", 
+                "x64/$Configuration/EasyHookDll.lib",
+                "$Configuration/EasyHookDll.lib"
+            )
+            
+            $sourceLib = $null
+            foreach ($path in $possiblePaths) {
+                $foundFiles = Get-ChildItem -Path $path -Recurse -ErrorAction SilentlyContinue
+                if ($foundFiles) {
+                    $sourceLib = $foundFiles[0].FullName
+                    break
+                }
+            }
+            
+            $targetLib = Join-Path $libDir "easyhook64.lib"
+        }
+        
+        if ($sourceLib) {
+            Copy-Item $sourceLib $targetLib -Force
+            Write-Host "EasyHook 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
+            $easyhookBuilt = $true
+        } else {
+            Write-Host "EasyHook 라이브러리 파일을 찾을 수 없습니다. 생성된 파일들:" -ForegroundColor Yellow
+            Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  - $($_.FullName)" }
+            Write-Host "EasyHook 대신 Detours를 사용합니다" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "EasyHook 빌드 실패, Detours로 대체: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "EasyHook 프로젝트 파일을 찾을 수 없어 Detours를 사용합니다" -ForegroundColor Yellow
+}
+
+Set-Location $rootDir
+
+# 5. Detours 빌드 (EasyHook 대체용 또는 보완용)
 Write-Host "Detours 빌드 중..." -ForegroundColor Yellow
 $detoursDir = Join-Path $depsDir "detours"
 
@@ -291,15 +419,84 @@ if (Test-Path $sourceLib) {
     Copy-Item $sourceLib $targetLib -Force
     Write-Host "Detours 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
 } else {
-    throw "Detours 빌드 실패: $sourceLib을 찾을 수 없습니다"
+    Write-Host "Detours 라이브러리 파일을 찾을 수 없습니다. 생성된 파일들:" -ForegroundColor Yellow
+    Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  - $($_.FullName)" }
+    
+    if (-not $easyhookBuilt) {
+        Write-Host "EasyHook와 Detours 모두 빌드 실패했습니다. 후킹 라이브러리가 없으면 MacType 빌드가 실패할 수 있습니다." -ForegroundColor Red
+    } else {
+        Write-Host "EasyHook가 성공적으로 빌드되었으므로 Detours 없이도 진행 가능합니다." -ForegroundColor Yellow
+    }
 }
 
 Set-Location $rootDir
 
 Write-Host "=== 모든 종속성 빌드 완료 ===" -ForegroundColor Green
 
-# 빌드된 라이브러리 목록 출력
+# 빌드된 라이브러리 목록 출력 및 HOWTOBUILD.md 요구사항 확인
 Write-Host "`n빌드된 라이브러리:" -ForegroundColor Cyan
-Get-ChildItem $libDir -Filter "*.lib" | ForEach-Object {
-    Write-Host "  - $($_.Name)" -ForegroundColor White
+$builtLibs = Get-ChildItem $libDir -Filter "*.lib" | ForEach-Object { $_.Name }
+$builtLibs | ForEach-Object {
+    Write-Host "  ✓ $_" -ForegroundColor Green
 }
+
+# HOWTOBUILD.md 문서에 따른 필수 라이브러리 확인
+Write-Host "`nHOWTOBUILD.md 요구사항 확인:" -ForegroundColor Cyan
+
+$requiredLibs = @()
+if ($Platform -eq "x86") {
+    $requiredLibs = @(
+        "freetype.lib",       # FreeType (필수)
+        "iniparser.lib",      # IniParser (필수) 
+        "wow64ext.lib"        # wow64ext (x86만 필요)
+    )
+    # EasyHook 또는 Detours 중 하나 (필수)
+    $hookingLib = @("easyhook32.lib", "detours.lib")
+} else {
+    $requiredLibs = @(
+        "freetype64.lib",     # FreeType (필수)
+        "iniparser64.lib"     # IniParser (필수)
+    )
+    # EasyHook 또는 Detours 중 하나 (필수) 
+    $hookingLib = @("easyhook64.lib", "detours64.lib")
+}
+
+# 필수 라이브러리 확인
+foreach ($lib in $requiredLibs) {
+    if ($lib -in $builtLibs) {
+        Write-Host "  ✓ $lib (필수)" -ForegroundColor Green
+    } else {
+        Write-Host "  ✗ $lib (필수 - 누락!)" -ForegroundColor Red
+    }
+}
+
+# 후킹 라이브러리 확인 (EasyHook 또는 Detours 중 하나)
+$hookingFound = $false
+foreach ($lib in $hookingLib) {
+    if ($lib -in $builtLibs) {
+        Write-Host "  ✓ $lib (후킹 라이브러리)" -ForegroundColor Green
+        $hookingFound = $true
+        break
+    }
+}
+
+if (-not $hookingFound) {
+    Write-Host "  ✗ 후킹 라이브러리 누락! (easyhook 또는 detours 필요)" -ForegroundColor Red
+}
+
+# 환경 변수 확인
+Write-Host "`n환경 변수 설정 확인:" -ForegroundColor Cyan
+if ($env:FREETYPE_PATH) {
+    Write-Host "  ✓ FREETYPE_PATH: $env:FREETYPE_PATH" -ForegroundColor Green
+} else {
+    Write-Host "  ✗ FREETYPE_PATH 미설정" -ForegroundColor Red
+}
+
+if ($env:INI_PARSER_PATH) {
+    Write-Host "  ✓ INI_PARSER_PATH: $env:INI_PARSER_PATH" -ForegroundColor Green
+} else {
+    Write-Host "  ✗ INI_PARSER_PATH 미설정" -ForegroundColor Red
+}
+
+Write-Host "`n다음 단계: 모든 라이브러리를 lib/ 폴더에 배치한 후 MacType을 빌드하세요" -ForegroundColor Cyan
+Write-Host "빌드 명령: msbuild gdipp.sln -p:Configuration=$Configuration -p:Platform=$(if ($Platform -eq 'x86') { 'Win32' } else { 'x64' })" -ForegroundColor White

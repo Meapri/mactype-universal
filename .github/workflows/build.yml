@@ -65,7 +65,7 @@ jobs:
         # 종속성 빌드
         .\scripts\build-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }}
         
-        # 환경 변수 설정
+        # 환경 변수 설정 (스크립트에서 자동 설정되지만 GitHub Actions용으로 추가)
         echo "FREETYPE_PATH=$PWD/deps/freetype-${{ matrix.platform }}" >> $env:GITHUB_ENV
         echo "INI_PARSER_PATH=$PWD/deps/iniparser" >> $env:GITHUB_ENV
 
