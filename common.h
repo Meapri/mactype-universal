@@ -17,11 +17,19 @@
 // DirectWrite & Direct2D 헤더들
 #include <d2d1.h>
 #include <d2d1_1.h>
+#include <d2d1_2.h>
 #include <d2d1_3.h>
+#include <d2d1helper.h>
 #include <dwrite.h>
 #include <dwrite_1.h>
 #include <dwrite_2.h>
 #include <dwrite_3.h>
+#include <dxgi.h>
+#include <dxgi1_2.h>
+#include <dxgi1_3.h>
+#include <dxgi1_4.h>
+#include <dxgi1_5.h>
+#include <dxgi1_6.h>
 
 // 표준 라이브러리 헤더들 (현대적)
 #include <string>

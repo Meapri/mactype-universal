@@ -17,6 +17,9 @@
 // _vsnwprintf用
 #include <wchar.h>		
 #include <stdarg.h>
+#include <string_view>
+#include <array>
+#include <algorithm>
 
 #define _CRTDBG_MAP_ALLOC
 #include <cstdlib>
@@ -72,8 +75,8 @@ static void ShowErrorMessage(UINT id, DWORD code) noexcept
     }
 }
 
-// constexpr 함수로 현대화
-[[nodiscard]] constexpr HRESULT HresultFromLastError() noexcept
+// 런타임 함수로 현대화 (GetLastError는 constexpr이 아님)
+[[nodiscard]] inline HRESULT HresultFromLastError() noexcept
 {
     const DWORD error_code = GetLastError();
     return HRESULT_FROM_WIN32(error_code);

@@ -6,7 +6,7 @@
 #include "hash_list.h"
 #include <VersionHelpers.h>
 #include <freetype/ftmodapi.h>
-#include <IniParser/ParseIni.h>
+#include <iniparser.h>
 #include "json.hpp"
 #include <thread>
 
