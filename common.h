@@ -39,15 +39,31 @@
     #pragma comment(lib, "dxgi.lib")
 #endif
 
+// 누락된 최신 DirectX 인터페이스를 위한 전방 선언 (호환성 보장)
+#ifndef __ID2D1Device3_INTERFACE_DEFINED__
+interface ID2D1Device3;
+interface ID2D1Device4;
+interface ID2D1Device5; 
+interface ID2D1Device6;
+interface ID2D1DeviceContext3;
+interface ID2D1DeviceContext4;
+interface ID2D1DeviceContext5;
+interface ID2D1DeviceContext6;
+interface ID2D1Factory4;
+interface ID2D1Factory5;
+interface ID2D1Factory6;
+interface ID2D1Factory7;
+#endif
+
 // 표준 라이브러리 헤더들 (현대적)
 #include <string>
 #include <string_view>
 #include <memory>
-#include <functional>
-#include <algorithm>
 #include <set>
 #include <map>
 #include <vector>
+#include <functional>
+#include <algorithm>
 #include <optional>
 #include <filesystem>
 

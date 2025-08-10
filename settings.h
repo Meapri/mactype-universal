@@ -76,7 +76,7 @@ public:
 	}
 };
 
-typedef map<CFontName,CFontSubResult> CFontNameCache;*/
+typedef std::map<CFontName,CFontSubResult> CFontNameCache;*/
 
 
 int _StrToInt(LPCTSTR pStr, int nDefault);
@@ -197,12 +197,12 @@ private:
 };
 
 typedef StringHashT<LF_FACESIZE + 10,true> CFontSubstitutesHash;
-typedef set<wstring> CFontSubstitutesIniArray;
+typedef std::set<std::wstring> CFontSubstitutesIniArray;
 
 class CFontSubstitutesInfo : public CSimpleMap<CFontSubstituteData, CFontSubstituteData>
 {
 private:
-	//typedef map<wstring, wstring> FontSubMap; 
+	//typedef std::map<std::wstring, std::wstring> FontSubMap; 
 	//FontSubMap m_mfontsub;
 	void initini(const CFontSubstitutesIniArray& iniarray);
 	void initreg();
@@ -297,7 +297,7 @@ private:
 	DWORD m_nShadowDarkColor;
 	unsigned char m_arrLcdFilterWeights[5];
 	char m_arrPixelLayout[6];
-	set<int> m_nDisplayAffinity;	// screen affinity set for per-display rendering
+	std::set<int> m_nDisplayAffinity;	// screen affinity set for per-display rendering
 
 	//settings for experimental
 	bool m_bEnableClipBoxFix;
@@ -328,9 +328,9 @@ private:
 	int  m_nTuneTableB[256];
 	static TCHAR m_szexeName[MAX_PATH+1];
 
-	typedef set<wstring>	FontHashMap;
-	typedef set<wstring>	ModuleHashMap;
-	typedef set<wstring> FontSubSet;
+	typedef std::set<std::wstring>	FontHashMap;
+	typedef std::set<std::wstring>	ModuleHashMap;
+	typedef std::set<std::wstring> FontSubSet;
 	typedef CArray<CFontIndividual>	IndividualArray;
 	FontHashMap		m_arrExcludeFont;
 	FontHashMap		m_arrIncludeFont;
@@ -358,14 +358,14 @@ private:
 	static int    _GetFreeTypeProfileInt       (LPCTSTR lpszKey, int nDefault, LPCTSTR lpszFile);
 	static int	  _GetFreeTypeProfileIntFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, int nDefault, LPCTSTR lpszFile);
 	static bool   _GetFreeTypeProfileBoolFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, bool nDefault, LPCTSTR lpszFile);
-	static wstring _GetFreeTypeProfileStrFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, const TCHAR* nDefault, LPCTSTR lpszFile);
+	static std::wstring _GetFreeTypeProfileStrFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, const TCHAR* nDefault, LPCTSTR lpszFile);
 	static int    _GetFreeTypeProfileBoundInt  (LPCTSTR lpszKey, int nDefault, int nMin, int nMax, LPCTSTR lpszFile);
 	static float  _GetFreeTypeProfileFloat     (LPCTSTR lpszKey, float fDefault, LPCTSTR lpszFile);
 	static float  _GetFreeTypeProfileBoundFloat(LPCTSTR lpszKey, float fDefault, float fMin, float fMax, LPCTSTR lpszFile);
 	static DWORD  _GetFreeTypeProfileString    (LPCTSTR lpszKey, LPCTSTR lpszDefault, LPTSTR lpszRet, DWORD cch, LPCTSTR lpszFile);
 	//template <typename T>
-	static bool AddListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, set<wstring> & arr);
-	static bool AddExcludeListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, set<wstring> & arr);
+	static bool AddListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, std::set<std::wstring> & arr);
+	static bool AddExcludeListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, std::set<std::wstring> & arr);
 	bool AddIndividualFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, IndividualArray& arr);
 	bool AddLcdFilterFromSection(LPCTSTR lpszKey, LPCTSTR lpszFile, unsigned char* arr);
 	bool AddPixelModeFromSection(LPCTSTR lpszKey, LPCTSTR lpszFile, char* arr);
@@ -499,7 +499,7 @@ public:
 	const int* GetTuneTableR() const { return m_nTuneTableR; }
 	const int* GetTuneTableG() const { return m_nTuneTableG; }
 	const int* GetTuneTableB() const { return m_nTuneTableB; }
-	set<int>& DisplayAffinity() { return m_nDisplayAffinity; }
+	std::set<int>& DisplayAffinity() { return m_nDisplayAffinity; }
 
 	bool LoadSettings(HINSTANCE hModule);
 
