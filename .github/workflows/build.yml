@@ -14,7 +14,7 @@ env:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     strategy:
       matrix:
@@ -93,12 +93,27 @@ jobs:
         New-Item -ItemType Directory -Force -Path lib
         New-Item -ItemType Directory -Force -Path deps
 
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          vcpkg
+          deps/vcpkg_installed
+        key: vcpkg-${{ matrix.platform }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-${{ matrix.platform }}-
+          vcpkg-
+
     - name: Setup vcpkg manually
       run: |
-        # vcpkg 수동 설치 (안정적인 방법)
-        git clone https://github.com/Microsoft/vcpkg.git vcpkg
+        # vcpkg 수동 설치 (안정적인 방법, 캐시 고려)
+        if (!(Test-Path "vcpkg")) {
+          git clone https://github.com/Microsoft/vcpkg.git vcpkg
+        }
         cd vcpkg
-        .\bootstrap-vcpkg.bat
+        if (!(Test-Path "vcpkg.exe")) {
+          .\bootstrap-vcpkg.bat
+        }
         echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
         echo "$PWD" >> $env:GITHUB_PATH
         cd ..

@@ -98,7 +98,7 @@ Write-Host "사용할 triplet: $triplet" -ForegroundColor Cyan
 # vcpkg 매니페스트 모드로 의존성 설치
 Write-Host "vcpkg 의존성 설치 중..." -ForegroundColor Yellow
 try {
-    & $vcpkgExe install --triplet $triplet --x-manifest-root="$rootDir" --x-install-root="$depsDir/vcpkg_installed"
+    & $vcpkgExe install --triplet $triplet --x-manifest-root="$rootDir" --x-install-root="$depsDir/vcpkg_installed" --x-buildtrees-root="$depsDir/vcpkg_buildtrees" --x-downloads-root="$depsDir/vcpkg_downloads"
     if ($LASTEXITCODE -ne 0) {
         throw "vcpkg install 실패"
     }
