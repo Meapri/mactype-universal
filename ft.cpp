@@ -1794,6 +1794,14 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 		return FALSE;
 	}
 
+	// 두 루프에서 공유할 변수들을 함수 시작 부분에 선언
+	FT_Referenced_Glyph* glyph_bitmap = NULL;
+	int gdi32x = 0, gdi32x2 = 0;
+	FreeTypeCharData* chData = NULL;
+	FT_UInt glyph_index = 0;
+	BOOL bIsBold = false, bIsIndivBold = false;
+	int cx = 0, cx2 = 0;
+	FT_Referenced_Glyph* glyph_bitmap2 = NULL;
 
 	WORD* gi = new WORD[cbString];
 	WORD* ggi = gi;
@@ -1823,13 +1831,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
 	bool bUnicodePlane = false;
-	// goto cont로 인한 변수 초기화 건너뛰기 문제 해결을 위해 변수들을 미리 선언
-	FT_Referenced_Glyph* glyph_bitmap = NULL;
-	int gdi32x = 0;
-	FreeTypeCharData* chData = NULL;
-	FT_UInt glyph_index = 0;
-	BOOL bIsBold = false, bIsIndivBold = false;
-	int cx = 0;
+	// goto cont로 인한 변수 초기화 건너뛰기 문제 해결됨 - 변수들이 함수 시작에서 선언됨
 	// Dx, Dy는 이미 함수 매개변수로 선언되어 있음 (int* Dx, int* Dy)
 	
 	for (int i = 0; lpString < lpEnd; ++lpString, ++gi, ++GlyphArray, ++drState, ++AAList, /*ggdi32++,*/ i++) {
@@ -2391,9 +2393,7 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 	if (!bAllowDefaultLink && FTInfo.face_id_list_num > 1)
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
-	// 두 번째 루프를 위한 변수들 선언
-	int cx2 = 0, gdi32x2 = 0;
-	FT_Referenced_Glyph* glyph_bitmap2 = NULL;
+	// 두 번째 루프 - 변수들이 이미 함수 시작에서 선언됨
 
 	for (int i = 0; lpString < lpEnd; ++lpString, gi++, GlyphArray++, drState++, ++AAList,/*ggdi32++,*/ i++) {
 		WCHAR wch = *lpString;
@@ -2402,9 +2402,10 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 		glyph_bitmap2 = GlyphArray;
 		gdi32x2 = 0;// = *ggdi32;
 		FTInfo.font_type.face_id = FTInfo.face_id_list[0];
-		FreeTypeCharData* chData = NULL;
-		FT_UInt glyph_index = 0;
-		BOOL bIsBold = false, bIsIndivBold = false;
+		chData = NULL;
+		glyph_index = 0;
+		bIsBold = false;
+		bIsIndivBold = false;
 
 		{
 
