@@ -52,50 +52,107 @@ if (Test-Path $patchFile) {
 
 # FreeType 빌드 (문서에 따라 multi-thread release로 빌드)
 $freetypeSln = "builds/windows/vc2010/freetype.sln"
+
+# 먼저 사용 가능한 빌드 구성 확인
+Write-Host "FreeType 사용 가능한 빌드 구성 확인 중..." -ForegroundColor Yellow
+$projectFiles = Get-ChildItem -Path "builds/windows/vc2010" -Filter "*.vcxproj" -ErrorAction SilentlyContinue
+if ($projectFiles) {
+    Write-Host "발견된 프로젝트 파일: $($projectFiles[0].Name)" -ForegroundColor Cyan
+}
+
 if ($Platform -eq "x86") {
-    Write-Host "FreeType x86 빌드 중 (multi-thread release)..." -ForegroundColor Yellow
-    msbuild $freetypeSln -p:Configuration="Release Multithreaded" -p:Platform=Win32 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+    Write-Host "FreeType x86 빌드 중..." -ForegroundColor Yellow
     
-    # 가능한 출력 경로들 확인
-    $possiblePaths = @(
-        "objs/Win32/Release Multithreaded/freetype.lib",
-        "objs/Win32/Release/freetype.lib", 
-        "objs/Win32/$Configuration/freetype.lib"
-    )
+    # 여러 빌드 구성 시도
+    $buildConfigs = @("Release", "Release Multithreaded", "$Configuration")
+    $buildSuccess = $false
     
-    $sourceLib = $null
-    foreach ($path in $possiblePaths) {
-        if (Test-Path $path) {
-            $sourceLib = $path
-            break
+    foreach ($config in $buildConfigs) {
+        try {
+            Write-Host "빌드 구성 시도: $config" -ForegroundColor Cyan
+            msbuild $freetypeSln -p:Configuration=$config -p:Platform=Win32 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+            
+            # 가능한 출력 경로들 확인
+            $possiblePaths = @(
+                "objs/Win32/$config/freetype.lib",
+                "objs/Win32/Release/freetype.lib", 
+                "objs/Win32/$Configuration/freetype.lib",
+                "objs/x86/$config/freetype.lib"
+            )
+            
+            $sourceLib = $null
+            foreach ($path in $possiblePaths) {
+                if (Test-Path $path) {
+                    $sourceLib = $path
+                    $buildSuccess = $true
+                    Write-Host "FreeType 라이브러리 발견: $path" -ForegroundColor Green
+                    break
+                }
+            }
+            
+            if ($buildSuccess) { break }
+        } catch {
+            Write-Host "빌드 구성 $config 실패: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
+    
+    if (-not $buildSuccess) {
+        Write-Host "모든 빌드 구성 실패. 생성된 파일 확인 중..." -ForegroundColor Yellow
+        Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  발견: $($_.FullName)" }
+        $sourceLib = ""  # 빈 문자열로 설정하여 null 오류 방지
+    }
+    
     $targetLib = Join-Path $libDir "freetype.lib"
 } else {
-    Write-Host "FreeType x64 빌드 중 (multi-thread release)..." -ForegroundColor Yellow
-    msbuild $freetypeSln -p:Configuration="Release Multithreaded" -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+    Write-Host "FreeType x64 빌드 중..." -ForegroundColor Yellow
     
-    $possiblePaths = @(
-        "objs/x64/Release Multithreaded/freetype.lib",
-        "objs/x64/Release/freetype.lib",
-        "objs/x64/$Configuration/freetype.lib"
-    )
+    $buildConfigs = @("Release", "Release Multithreaded", "$Configuration")
+    $buildSuccess = $false
     
-    $sourceLib = $null
-    foreach ($path in $possiblePaths) {
-        if (Test-Path $path) {
-            $sourceLib = $path
-            break
+    foreach ($config in $buildConfigs) {
+        try {
+            Write-Host "빌드 구성 시도: $config" -ForegroundColor Cyan
+            msbuild $freetypeSln -p:Configuration=$config -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+            
+            $possiblePaths = @(
+                "objs/x64/$config/freetype.lib",
+                "objs/x64/Release/freetype.lib",
+                "objs/x64/$Configuration/freetype.lib",
+                "objs/AMD64/$config/freetype.lib"
+            )
+            
+            $sourceLib = $null
+            foreach ($path in $possiblePaths) {
+                if (Test-Path $path) {
+                    $sourceLib = $path
+                    $buildSuccess = $true
+                    Write-Host "FreeType 라이브러리 발견: $path" -ForegroundColor Green
+                    break
+                }
+            }
+            
+            if ($buildSuccess) { break }
+        } catch {
+            Write-Host "빌드 구성 $config 실패: $($_.Exception.Message)" -ForegroundColor Yellow
         }
     }
+    
+    if (-not $buildSuccess) {
+        Write-Host "모든 빌드 구성 실패. 생성된 파일 확인 중..." -ForegroundColor Yellow
+        Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  발견: $($_.FullName)" }
+        $sourceLib = ""  # 빈 문자열로 설정하여 null 오류 방지
+    }
+    
     $targetLib = Join-Path $libDir "freetype64.lib"
 }
 
-if (Test-Path $sourceLib) {
+if ($sourceLib -and (Test-Path $sourceLib)) {
     Copy-Item $sourceLib $targetLib -Force
     Write-Host "FreeType 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
 } else {
-    throw "FreeType 빌드 실패: $sourceLib을 찾을 수 없습니다"
+    Write-Host "FreeType 라이브러리 빌드 실패 또는 파일을 찾을 수 없음" -ForegroundColor Red
+    Write-Host "소스 라이브러리: $sourceLib" -ForegroundColor Yellow
+    Write-Host "FreeType 없이 계속 진행하지만 MacType 빌드가 실패할 수 있습니다" -ForegroundColor Yellow
 }
 
 # 환경 변수 설정
