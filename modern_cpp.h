@@ -23,6 +23,9 @@
 #include <type_traits>
 #include <concepts>
 #include <ranges>
+#include <cwctype>
+#include <cctype>
+#include <locale>
 
 // 1. 스마트 포인터 타입 별칭 (가독성 향상)
 template<typename T>

@@ -159,4 +159,21 @@ typedef unsigned long ULONG_PTR;
 #define D2D1_ALPHA_MODE_IGNORE D2D1_ALPHA_MODE_IGNORE
 #endif
 
+// 11. Windows API 헤더 포함
+#include <windows.h>
+#include <tchar.h>
+#include <objbase.h>
+#include <shellapi.h>
+#include <shlwapi.h>
+#include <comdef.h>
+
+// GDI/Graphics 관련 헤더
+#include <wingdi.h>
+#include <winuser.h>
+
+// 최신 SDK 호환성을 위한 추가 정의들
+#ifndef INVALID_HANDLE_VALUE
+#define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
+#endif
+
 #endif // _SDK_COMPAT_H_
