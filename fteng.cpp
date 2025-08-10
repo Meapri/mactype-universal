@@ -99,7 +99,7 @@ LOGFONTW* GetFontNameFromFile(LPCWSTR Filename)	//获得一个字体文件内包
 }
 
 template <class T>
-struct GCCounterSortFunc : public std::binary_function<const T*, const T*, bool>
+struct GCCounterSortFunc
 {
 	bool operator()(const T* arg1, const T* arg2) const
 	{
@@ -109,7 +109,7 @@ struct GCCounterSortFunc : public std::binary_function<const T*, const T*, bool>
 	}
 };
 
-struct DeleteCharFunc : public std::unary_function<FreeTypeCharData*&, void>
+struct DeleteCharFunc
 {
 	void operator()(FreeTypeCharData*& arg) const
 	{
@@ -125,7 +125,7 @@ void CompactMap(T& pp, int count, int reduce)
 {
 	CCriticalSectionLock __lock(CCriticalSectionLock::CS_FONTCACHE);
 	int reducecount = pp.size() - reduce;
-	T::iterator it= pp.begin();
+	typename T::iterator it = pp.begin();
 	for (int i=0;i<reducecount;i++) //删除超过FREETYPE_GC_COUNTER之后的缓存
 	{
 		//it->second->Erase();
@@ -871,7 +871,7 @@ bool FreeTypeSysFontData::Init(LPCTSTR name, int weight, bool italic)
 					italic, FALSE, FALSE,
 					DEFAULT_CHARSET,
 					OUT_DEFAULT_PRECIS,
-					FONT_MAGIC_NUMBER,
+					mactype::FONT_MAGIC_NUMBER,
 					DEFAULT_QUALITY,
 					DEFAULT_PITCH | FF_DONTCARE,
 					name);

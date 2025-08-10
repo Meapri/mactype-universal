@@ -1830,7 +1830,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 	FT_UInt glyph_index = 0;
 	BOOL bIsBold = false, bIsIndivBold = false;
 	int cx = 0;
-	int Dx = 0, Dy = 0;
+	// Dx, Dy는 이미 함수 매개변수로 선언되어 있음 (int* Dx, int* Dy)
 	
 	for (int i = 0; lpString < lpEnd; ++lpString, ++gi, ++GlyphArray, ++drState, ++AAList, /*ggdi32++,*/ i++) {
 		WCHAR wch = *lpString;
@@ -1920,7 +1920,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 							//glyph_index = FT_Get_Char_Index(FTInfo.GetFace(j), wch);
 						}
 						if (glyph_index) {
-							GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x);	//有效文字，计算宽度
+							GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x2);	//有效文字，计算宽度
 							f_glyph = true;
 							FTInfo.font_type.face_id = FTInfo.face_id_list[j];
 							freetype_face = FTInfo.GetFace(j);	//同时更新对应faceid的实际face
@@ -2011,9 +2011,9 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 					*drState = FT_DRAW_NOTFOUND;	//找不到文字
 				if ((!FTInfo.lpDx || lpString == lpEnd - 1) && !bGlyphIndex)	//无效文字，而且没有事先排版或者是排版的最后一个字符了
 				{
-					GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x);
+					GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x2);
 				}
-				cx = gdi32x;
+				cx2 = gdi32x2;
 				/*
 				if (bSizeOnly) {
 				FTInfo.x += cx;
@@ -2031,7 +2031,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 							SIZE p = { 0 };
 							if (GetTextExtentExPointW(FTInfo.hdc, lpString, 2, 99999, NULL, NULL, &p)) {
 								gdi32x = p.cx;
-								cx = gdi32x;
+								cx2 = gdi32x2;
 							}
 						}
 						bUnicodePlane = true;
@@ -2391,12 +2391,16 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 	if (!bAllowDefaultLink && FTInfo.face_id_list_num > 1)
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
+	// 두 번째 루프를 위한 변수들 선언
+	int cx2 = 0, gdi32x2 = 0;
+	FT_Referenced_Glyph* glyph_bitmap2 = NULL;
+
 	for (int i = 0; lpString < lpEnd; ++lpString, gi++, GlyphArray++, drState++, ++AAList,/*ggdi32++,*/ i++) {
 		WCHAR wch = *lpString;
 		if (!bGlyphIndex && bIsSymbol && !bWindowsLink)
 			wch |= 0xF000;
-		FT_Referenced_Glyph* glyph_bitmap = GlyphArray;
-		int gdi32x = 0;// = *ggdi32;
+		glyph_bitmap2 = GlyphArray;
+		gdi32x2 = 0;// = *ggdi32;
 		FTInfo.font_type.face_id = FTInfo.face_id_list[0];
 		FreeTypeCharData* chData = NULL;
 		FT_UInt glyph_index = 0;
@@ -2474,9 +2478,9 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 					*drState = FT_DRAW_NOTFOUND;	//找不到文字
 				if ((!FTInfo.lpDx || lpString == lpEnd - 1) && !bGlyphIndex)	//无效文字，而且没有事先排版或者是排版的最后一个字符了
 				{
-					GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x);
+					GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x2);
 				}
-				cx = gdi32x;
+				cx2 = gdi32x2;
 				/*
 				if (bSizeOnly) {
 				FTInfo.x += cx;
