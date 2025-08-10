@@ -254,7 +254,7 @@ Params* GetDWParams() {
 	return &dwParams;
 }
 
-IDWriteRenderingParams* GetD2DRenderingParams(IDWriteRenderingParams* default) {
+IDWriteRenderingParams* GetD2DRenderingParams(IDWriteRenderingParams* defaultParams) {
 	Params* params = GetD2DParams();
 	static bool inited = [&] {
 		params->CreateParams(NULL);
@@ -264,10 +264,10 @@ IDWriteRenderingParams* GetD2DRenderingParams(IDWriteRenderingParams* default) {
 	if (params->RenderingParams)
 		return params->RenderingParams;
 	else
-		return default;
+		return defaultParams;
 }
 
-IDWriteRenderingParams* GetDWRenderingParams(IDWriteRenderingParams* default) {
+IDWriteRenderingParams* GetDWRenderingParams(IDWriteRenderingParams* defaultParams) {
 	Params* params = GetDWParams();
 	static bool inited = [&] {
 		params->CreateParams(NULL);
@@ -277,7 +277,7 @@ IDWriteRenderingParams* GetDWRenderingParams(IDWriteRenderingParams* default) {
 	if (params->RenderingParams)
 		return params->RenderingParams;
 	else
-		return default;
+		return defaultParams;
 }
 
 // Hook the implementation rather than an interface.
@@ -1128,7 +1128,7 @@ HRESULT WINAPI IMPL_CreateDeviceContext4(
 		deviceContext2
 		);
 	if (SUCCEEDED(hr)) {
-		HookRenderTarget(*deviceContext2, D2D1_DEVICE_CONTEXT_CATEGORY);
+		HookRenderTarget(static_cast<ID2D1RenderTarget*>(*deviceContext2), D2D1_DEVICE_CONTEXT_CATEGORY);
 	}
 	MyDebug(L"IMPL_CreateDeviceContext4 hooked");
 	return hr;
@@ -1145,7 +1145,7 @@ HRESULT WINAPI IMPL_CreateDeviceContext5(
 		deviceContext
 		);
 	if (SUCCEEDED(hr)) {
-		HookRenderTarget(*deviceContext, D2D1_DEVICE_CONTEXT_CATEGORY);
+		HookRenderTarget(static_cast<ID2D1RenderTarget*>(*deviceContext), D2D1_DEVICE_CONTEXT_CATEGORY);
 	}
 	MyDebug(L"IMPL_CreateDeviceContext5 hooked");
 	return hr;
@@ -1162,7 +1162,7 @@ HRESULT WINAPI IMPL_CreateDeviceContext6(
 		deviceContext
 		);
 	if (SUCCEEDED(hr)) {
-		HookRenderTarget(*deviceContext, D2D1_DEVICE_CONTEXT_CATEGORY);
+		HookRenderTarget(static_cast<ID2D1RenderTarget*>(*deviceContext), D2D1_DEVICE_CONTEXT_CATEGORY);
 	}
 	MyDebug(L"IMPL_CreateDeviceContext6 hooked");
 	return hr;
@@ -1179,7 +1179,7 @@ HRESULT WINAPI IMPL_CreateDeviceContext7(
 		deviceContext
 		);
 	if (SUCCEEDED(hr)) {
-		HookRenderTarget(*deviceContext, D2D1_DEVICE_CONTEXT_CATEGORY);
+		HookRenderTarget(static_cast<ID2D1RenderTarget*>(*deviceContext), D2D1_DEVICE_CONTEXT_CATEGORY);
 	}
 	MyDebug(L"IMPL_CreateDeviceContext7 hooked");
 	return hr;
@@ -1247,7 +1247,7 @@ HRESULT WINAPI IMPL_CreateDevice4(
 		d2dDevice3
 		);
 	if (SUCCEEDED(hr)) {
-		HookDevice(*d2dDevice3);
+		HookDevice(static_cast<ID2D1Device*>(*d2dDevice3));
 	}
 	MyDebug(L"IMPL_CreateDevice4 hooked");
 	return hr;
@@ -1264,7 +1264,7 @@ HRESULT WINAPI IMPL_CreateDevice5(
 		d2dDevice4
 		);
 	if (SUCCEEDED(hr)) {
-		HookDevice(*d2dDevice4);
+		HookDevice(static_cast<ID2D1Device*>(*d2dDevice4));
 	}
 	MyDebug(L"IMPL_CreateDevice5 hooked");
 	return hr;
@@ -1281,7 +1281,7 @@ HRESULT WINAPI IMPL_CreateDevice6(
 		d2dDevice5
 		);
 	if (SUCCEEDED(hr)) {
-		HookDevice(*d2dDevice5);
+		HookDevice(static_cast<ID2D1Device*>(*d2dDevice5));
 	}
 	MyDebug(L"IMPL_CreateDevice6 hooked");
 	return hr;
@@ -1298,7 +1298,7 @@ HRESULT WINAPI IMPL_CreateDevice7(
 		d2dDevice6
 		);
 	if (SUCCEEDED(hr)) {
-		HookDevice(*d2dDevice6);
+		HookDevice(static_cast<ID2D1Device*>(*d2dDevice6));
 	}
 	MyDebug(L"IMPL_CreateDevice7 hooked");
 	return hr;

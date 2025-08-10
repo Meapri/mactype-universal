@@ -1034,15 +1034,15 @@ public:
 			case WM_COPYDATA: {
 				COPYDATASTRUCT* data = (COPYDATASTRUCT*)lparam;
 				if (data->cbData && data->lpData) {	// ignore invalid request.
-					string json;
+					std::string json;
 					json.resize(data->cbData);
 					memcpy((void*)json.c_str(), data->lpData, data->cbData);
 					// now parse the json string
 					auto jsonobj = json::parse(json.begin(), json.end());
-					string command = jsonobj["command"].get<std::string>();
+					std::string command = jsonobj["command"].get<std::string>();
 					// various command dispatch
 					if (command == "loadprofile") {	// load target profile from disk
-						string filename = jsonobj["file"].get<std::string>();
+						std::string filename = jsonobj["file"].get<std::string>();
 						if (filename.length()) {
 							this->LoadSetting(to_wide_string(filename).c_str());
 							RedrawCurrentApp();
