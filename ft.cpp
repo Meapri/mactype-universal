@@ -1220,14 +1220,14 @@ CGGOOutlineGlyph::init(DWORD bufsize, PVOID bufp, const GLYPHMETRICS& gm)
 		return false;
 	}
 	outline.points = (FT_Vector*)calloc(outline.n_points, sizeof * outline.points);
-	outline.tags = (char*)calloc(outline.n_points, sizeof * outline.tags);
-	outline.contours = (short*)calloc(outline.n_contours, sizeof * outline.contours);
+	outline.tags = (unsigned char*)calloc(outline.n_points, sizeof * outline.tags);
+	outline.contours = (unsigned short*)calloc(outline.n_contours, sizeof * outline.contours);
 	if (!outline.points || !outline.tags || !outline.contours) {
 		done();
 		return false;
 	}
 
-	short* cp = outline.contours;
+	unsigned short* cp = outline.contours;
 	short ppos = 0;
 
 	ttphp = (LPTTPOLYGONHEADER)bufp;
@@ -1823,8 +1823,23 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
 	bool bUnicodePlane = false;
+	// goto cont로 인한 변수 초기화 건너뛰기 문제 해결을 위해 변수들을 미리 선언
+	FT_Referenced_Glyph* glyph_bitmap = NULL;
+	int gdi32x = 0;
+	FreeTypeCharData* chData = NULL;
+	FT_UInt glyph_index = 0;
+	BOOL bIsBold = false, bIsIndivBold = false;
+	int cx = 0;
+	int Dx = 0, Dy = 0;
+	
 	for (int i = 0; lpString < lpEnd; ++lpString, ++gi, ++GlyphArray, ++drState, ++AAList, /*ggdi32++,*/ i++) {
 		WCHAR wch = *lpString;
+		glyph_bitmap = GlyphArray;
+		gdi32x = 0;
+		chData = NULL;
+		glyph_index = 0;
+		bIsBold = false;
+		bIsIndivBold = false;
 		if (bUnicodePlane)
 		{
 			*drState = FT_DRAW_NOTFOUND;
@@ -1845,12 +1860,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 		}
 		if (!bGlyphIndex && bIsSymbol && !bWindowsLink)
 			wch |= 0xF000;
-		FT_Referenced_Glyph* glyph_bitmap = GlyphArray;
-		int gdi32x = 0;// = *ggdi32;
 		FTInfo.font_type.face_id = FTInfo.face_id_list[0];
-		FreeTypeCharData* chData = NULL;
-		FT_UInt glyph_index = 0;
-		BOOL bIsBold = false, bIsIndivBold = false;
 
 		{
 
@@ -2003,7 +2013,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 				{
 					GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x);
 				}
-				int cx = gdi32x;
+				cx = gdi32x;
 				/*
 				if (bSizeOnly) {
 				FTInfo.x += cx;
@@ -2201,7 +2211,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 			}
 		}	// end of "case: no cache found"
 
-		int cx = (bVertical && IsVerticalChar(wch)) ?
+		cx = (bVertical && IsVerticalChar(wch)) ?
 			FT_FixedToInt(FT_BitmapGlyph((*glyph_bitmap)->ft_glyph)->root.advance.y) :
 			FT_FixedToInt(FT_BitmapGlyph((*glyph_bitmap)->ft_glyph)->root.advance.x);
 
@@ -2402,7 +2412,7 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 				/*
 				if (bSizeOnly) {
 				//TRACE(_T("Cache hit: GetCharWidth [%c]\n"), *lpString);
-				int cx = chData->GetWidth();
+				cx = chData->GetWidth();
 				FTInfo.x += (bWidthGDI32 ? gdi32x : cx) + FTInfo.params->charExtra;
 				goto cont;
 				}*/
@@ -2466,7 +2476,7 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 				{
 					GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x);
 				}
-				int cx = gdi32x;
+				cx = gdi32x;
 				/*
 				if (bSizeOnly) {
 				FTInfo.x += cx;
@@ -2607,7 +2617,7 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 			}
 		}
 
-		int cx = (bVertical && IsVerticalChar(wch)) ?
+		cx = (bVertical && IsVerticalChar(wch)) ?
 			FT_FixedToInt(FT_BitmapGlyph((*glyph_bitmap)->ft_glyph)->root.advance.y) :
 			FT_FixedToInt(FT_BitmapGlyph((*glyph_bitmap)->ft_glyph)->root.advance.x);
 		//done
@@ -2757,7 +2767,7 @@ int IsColorDark(DWORD Color, double Gamma)
 	static double s_multipler = 116 / pow(100, (double)1.0 / 3.0);	//预计算常数,强制使用double版本
 	double* RGBTable = s_AlphaBlendTable.GetRGBTable();	//获得显示器转换表
 	double ret = pow(23.9746 * RGBTable[GetRValue(Color)] + 73.0653 * RGBTable[GetGValue(Color)] + 6.13799 * RGBTable[GetBValue(Color)], 1.0 / 3.0) * s_multipler - 16;
-	return max(int(ret + 0.499), 0);
+	return (std::max)(int(ret + 0.499), 0);
 
 	/*double r = GetRValue(Color)/255.0;
 	double g = GetGValue(Color)/255.0;
@@ -2854,7 +2864,7 @@ BOOL FreeTypeTextOut(
 	{
 		float Gamma = pSettings->GammaValue();
 		bDarkColor = IsColorDark(FTInfo.params->color, Gamma);
-		int diff = max(darkdiff = abs(IsColorDark(pSettings->ShadowDarkColor(), Gamma) - bDarkColor), lightdiff = abs(IsColorDark(pSettings->ShadowLightColor(), Gamma) - bDarkColor));
+		int diff = (std::max)(darkdiff = abs(IsColorDark(pSettings->ShadowDarkColor(), Gamma) - bDarkColor), lightdiff = abs(IsColorDark(pSettings->ShadowLightColor(), Gamma) - bDarkColor));
 		ShadowColor = lightdiff <= darkdiff ? pSettings->ShadowDarkColor() : pSettings->ShadowLightColor();
 		bDarkColor = lightdiff <= darkdiff;
 		if (/*diff<10 || abs(lightdiff-darkdiff)<20 &&*/ pSettings->ShadowDarkColor() == pSettings->ShadowLightColor())
@@ -2868,7 +2878,7 @@ BOOL FreeTypeTextOut(
 			if (diff < 10)
 				FTInfo.params->alpha = 1;
 			else
-				FTInfo.params->alphatuner = max(1, 100 / diff);	//根据色差调整阴影浓度
+				FTInfo.params->alphatuner = (std::max)(1, 100 / diff);	//根据色差调整阴影浓度
 		}
 	}
 	char mode = (*Glyphs) ? FT_BitmapGlyph((*Glyphs)->ft_glyph)->bitmap.pixel_mode : FT_PIXEL_MODE_LCD;
