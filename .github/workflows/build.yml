@@ -26,10 +26,21 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Setup Windows SDK
-      uses: GuillaumeFalourd/setup-windows10-sdk-action@v1.11
-      with:
-        sdk-version: 10.0.19041.0
+    - name: Add Windows SDK to PATH
+      run: |
+        # Windows SDK가 PATH에 없으면 추가
+        $sdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22621.0\x64"
+        if (Test-Path $sdkPath) {
+          echo "$sdkPath" >> $env:GITHUB_PATH
+        }
+        
+        # Visual Studio 경로 확인
+        echo "=== Visual Studio 설치 확인 ==="
+        Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
+        Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
+        
+        echo "=== Windows SDK 확인 ==="
+        Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -ErrorAction SilentlyContinue
 
     - name: Cache dependencies
       uses: actions/cache@v4
