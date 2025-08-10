@@ -317,6 +317,9 @@ void HookFactory(ID2D1Factory* pD2D1Factory) {
 			MyDebug(L"ID2D1Factory3 hooked");
 		}
 
+		// 최신 DirectX 인터페이스들은 조건부 컴파일로 처리
+		// 이들은 일부 빌드 환경에서 GUID 문제를 일으킬 수 있음
+#if 0  // 최신 DirectX 인터페이스들을 임시로 비활성화
 		CComPtr<ID2D1Factory4> ptr4;
 		hr = pD2D1Factory->QueryInterface(&ptr4);
 		if (SUCCEEDED(hr)){
@@ -344,6 +347,7 @@ void HookFactory(ID2D1Factory* pD2D1Factory) {
 			HOOK(ptr7, CreateDevice7, 32);
 			MyDebug(L"ID2D1Factory7 hooked");
 		}
+#endif
 		return true;
 	}();
 }
@@ -1236,6 +1240,7 @@ HRESULT WINAPI IMPL_CreateDevice3(
 	return hr;
 }
 
+#if 0  // 최신 DirectX 인터페이스들을 임시로 비활성화
 HRESULT WINAPI IMPL_CreateDevice4(
 	ID2D1Factory4* This,
 	IDXGIDevice* dxgiDevice,
@@ -1303,6 +1308,7 @@ HRESULT WINAPI IMPL_CreateDevice7(
 	MyDebug(L"IMPL_CreateDevice7 hooked");
 	return hr;
 }
+#endif
 
 
 /*

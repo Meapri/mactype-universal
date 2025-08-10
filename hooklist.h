@@ -325,6 +325,7 @@ HOOK_MANUALLY(HRESULT, CreateDevice3, (
 	ID2D1Device2** d2dDevice2
 	), (This, dxgiDevice, d2dDevice2));
 
+#if 0  // 최신 DirectX 인터페이스들을 임시로 비활성화
 HOOK_MANUALLY(HRESULT, CreateDevice4, (
 	ID2D1Factory4* This,
 	IDXGIDevice* dxgiDevice,
@@ -348,6 +349,7 @@ HOOK_MANUALLY(HRESULT, CreateDevice7, (
 	IDXGIDevice* dxgiDevice,
 	ID2D1Device6** d2dDevice6
 	), (This, dxgiDevice, d2dDevice6));
+#endif
 
 HOOK_MANUALLY(BOOL, MySetProcessMitigationPolicy, (
 	_In_ PROCESS_MITIGATION_POLICY MitigationPolicy,
