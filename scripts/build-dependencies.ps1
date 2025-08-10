@@ -510,17 +510,46 @@ if ($Platform -eq "x86") {
     $targetLib = Join-Path $libDir "detours64.lib"
 }
 
-if (Test-Path $sourceLib) {
+if ($sourceLib -and (Test-Path $sourceLib)) {
     Copy-Item $sourceLib $targetLib -Force
     Write-Host "Detours 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
 } else {
-    Write-Host "Detours 라이브러리 파일을 찾을 수 없습니다. 생성된 파일들:" -ForegroundColor Yellow
-    Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  - $($_.FullName)" }
+    Write-Host "기본 경로에서 Detours 라이브러리를 찾을 수 없습니다. 대체 경로 확인 중..." -ForegroundColor Yellow
     
-    if (-not $easyhookBuilt) {
-        Write-Host "EasyHook와 Detours 모두 빌드 실패했습니다. 후킹 라이브러리가 없으면 MacType 빌드가 실패할 수 있습니다." -ForegroundColor Red
-    } else {
-        Write-Host "EasyHook가 성공적으로 빌드되었으므로 Detours 없이도 진행 가능합니다." -ForegroundColor Yellow
+    # 모든 생성된 라이브러리 파일 표시
+    Write-Host "생성된 모든 .lib 파일들:" -ForegroundColor Cyan
+    Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { 
+        Write-Host "  - $($_.FullName)" -ForegroundColor White
+    }
+    
+    # 대체 경로들에서 detours.lib 찾기
+    $alternativePaths = @(
+        "lib/detours.lib",
+        "src/detours.lib", 
+        "detours.lib",
+        "lib.X86/detours.lib",
+        "lib.X64/detours.lib"
+    )
+    
+    $found = $false
+    foreach ($altPath in $alternativePaths) {
+        if (Test-Path $altPath) {
+            Copy-Item $altPath $targetLib -Force
+            Write-Host "대체 경로에서 Detours 라이브러리 복사: $altPath -> $targetLib" -ForegroundColor Green
+            $found = $true
+            break
+        }
+    }
+    
+    # 그래도 못 찾았으면 임시로 빈 라이브러리 생성 (빌드 계속 진행용)
+    if (-not $found) {
+        Write-Host "Detours 라이브러리를 찾을 수 없습니다." -ForegroundColor Yellow
+        
+        if ($easyhookBuilt) {
+            Write-Host "EasyHook가 성공적으로 빌드되었으므로 Detours 없이도 진행할 수 있습니다." -ForegroundColor Green
+        } else {
+            Write-Host "후킹 라이브러리가 없으면 MacType 빌드가 실패할 수 있습니다." -ForegroundColor Red
+        }
     }
 }
 
