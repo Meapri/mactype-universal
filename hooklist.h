@@ -189,6 +189,7 @@ HOOK_MANUALLY(HRESULT, CreateDeviceContext3, (
 			  ID2D1DeviceContext2** deviceContext
 			  ), (This, options, deviceContext))
 
+#if 0  // 최신 DirectX 인터페이스들을 임시로 비활성화
 HOOK_MANUALLY(HRESULT, CreateDeviceContext4, (
 			  ID2D1Device3* This,
 			  D2D1_DEVICE_CONTEXT_OPTIONS options,
@@ -212,6 +213,7 @@ HOOK_MANUALLY(HRESULT, CreateDeviceContext7, (
 			  D2D1_DEVICE_CONTEXT_OPTIONS options,
 			  ID2D1DeviceContext6** deviceContext
 			  ), (This, options, deviceContext))
+#endif
 
 HOOK_MANUALLY(HRESULT, CreateTextFormat, (
 			   IDWriteFactory* self,

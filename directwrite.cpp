@@ -370,6 +370,7 @@ void HookDevice(ID2D1Device* d2dDevice){
 			HOOK(ptr3, CreateDeviceContext3, 12);
 			MyDebug(L"ID2D1Device2 hooked");
 		}
+#if 0  // 최신 DirectX 인터페이스들을 임시로 비활성화
 		CComPtr<ID2D1Device3> ptr4;
 		hr = (d2dDevice)->QueryInterface(&ptr4);
 		if SUCCEEDED(hr) {
@@ -394,6 +395,7 @@ void HookDevice(ID2D1Device* d2dDevice){
 			HOOK(ptr7, CreateDeviceContext7, 20);
 			MyDebug(L"ID2D1Device6 hooked");
 		}
+#endif
 		return true;
 	}();
 }
@@ -1121,6 +1123,7 @@ HRESULT WINAPI IMPL_CreateDeviceContext3(
 	return hr;
 }
 
+#if 0  // 최신 DirectX 인터페이스들을 임시로 비활성화
 HRESULT WINAPI IMPL_CreateDeviceContext4(
 	ID2D1Device3* This,
 	D2D1_DEVICE_CONTEXT_OPTIONS options,
@@ -1188,6 +1191,7 @@ HRESULT WINAPI IMPL_CreateDeviceContext7(
 	MyDebug(L"IMPL_CreateDeviceContext7 hooked");
 	return hr;
 }
+#endif
 
 HRESULT WINAPI IMPL_CreateDevice1(
 	ID2D1Factory1* This,
