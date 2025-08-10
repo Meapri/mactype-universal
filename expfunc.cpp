@@ -1,4 +1,6 @@
 #ifndef _GDIPP_EXE
+// MacType SDK 호환성 헤더 (최신 Windows SDK와의 충돌 방지)
+#include "sdk_compat.h"
 #include "settings.h"
 #include "override.h"
 #include <tlhelp32.h>

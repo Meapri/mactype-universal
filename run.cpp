@@ -1,11 +1,10 @@
 ﻿// dll injection
-#define _CRT_SECURE_NO_DEPRECATE 1
-#define WINVER 0x500
-#define _WIN32_WINNT 0x500
-#define _WIN32_IE 0x601
-#define WIN32_LEAN_AND_MEAN 1
+// MacType SDK 호환성 헤더 (최신 Windows SDK와의 충돌 방지)
+#include "sdk_compat.h"
+
 #define UNICODE  1
 #define _UNICODE 1
+
 #include <Windows.h>
 #include <ShellApi.h>
 #include <ComDef.h>

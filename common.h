@@ -1,19 +1,11 @@
 #pragma once
 
-#define _CRT_SECURE_NO_DEPRECATE 1
-#ifdef _WIN64
-#define _WIN32_WINNT _WIN32_WINNT_WIN10
-#define WINVER _WIN32_WINNT_VISTA
-#else
-#define _WIN32_WINNT _WIN32_WINNT_WIN10
-#define WINVER _WIN32_WINNT_WIN10
-#endif
-#define NTDDI_VERSION NTDDI_WIN10_RS3
-#define WIN32_LEAN_AND_MEAN 1
+// MacType SDK 호환성 헤더 (최신 Windows SDK와의 충돌 방지)
+#include "sdk_compat.h"
+
 #define UNICODE  1
 #define _UNICODE 1
 
-#define NOMINMAX
 #include <Windows.h>
 #include <Uxtheme.h>
 #include <usp10.h>
