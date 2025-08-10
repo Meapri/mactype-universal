@@ -27,11 +27,11 @@
   "overrides": [
     {
       "name": "freetype",
-      "version": "2.13.2#3"
+      "version": "2.13.3"
     },
     {
       "name": "detours",
-      "version": "4.0.1#5"
+      "version": "4.0.1#1"
     }
   ],
   "features": {

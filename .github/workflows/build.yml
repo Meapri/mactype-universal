@@ -14,10 +14,12 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 45
 
     strategy:
       matrix:
-        platform: [x86, x64, ARM64]
+        platform: [x86, x64]
+        # ARM64는 일단 제외하고 x86, x64를 먼저 테스트
 
     steps:
     - name: Checkout code

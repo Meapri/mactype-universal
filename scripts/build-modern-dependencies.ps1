@@ -105,20 +105,9 @@ try {
     Write-Host "vcpkg 의존성 설치 완료" -ForegroundColor Green
 } catch {
     Write-Host "vcpkg 설치 실패: $($_.Exception.Message)" -ForegroundColor Red
-    
-    # 대체 방법: 개별 패키지 설치
-    Write-Host "개별 패키지 설치 시도..." -ForegroundColor Yellow
-    
-    $packages = @("freetype", "detours", "nlohmann-json")
-    foreach ($package in $packages) {
-        Write-Host "설치 중: $package" -ForegroundColor Cyan
-        & $vcpkgExe install "${package}:$triplet"
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "$package 설치 성공" -ForegroundColor Green
-        } else {
-            Write-Host "$package 설치 실패" -ForegroundColor Yellow
-        }
-    }
+    Write-Host "매니페스트 모드에서는 개별 패키지 설치가 지원되지 않습니다." -ForegroundColor Yellow
+    Write-Host "vcpkg.json의 패키지 버전을 확인해주세요." -ForegroundColor Yellow
+    throw "vcpkg 의존성 설치 실패"
 }
 
 # 라이브러리 복사
