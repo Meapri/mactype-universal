@@ -3,21 +3,18 @@
 // MacType SDK 호환성 헤더 (최신 Windows SDK와의 충돌 방지)
 #include "sdk_compat.h"
 
+// MacType 현대적 C++ 기능 헤더
+#include "modern_cpp.h"
+
 #define UNICODE  1
 #define _UNICODE 1
 
+// Windows API 헤더들
 #include <Windows.h>
 #include <Uxtheme.h>
 #include <usp10.h>
-//#include <limits>
-#include <functional>
-//#include <iterator>
-#include <algorithm>
-#include <memory>
-#include "array.h"
-#include <set>
-#include "ownedcs.h"
-#include "undocAPI.h"
+
+// DirectWrite & Direct2D 헤더들
 #include <d2d1.h>
 #include <d2d1_1.h>
 #include <d2d1_3.h>
@@ -25,14 +22,25 @@
 #include <dwrite_1.h>
 #include <dwrite_2.h>
 #include <dwrite_3.h>
+
+// 표준 라이브러리 헤더들 (현대적)
 #include <string>
-#include <locale>
-#include <codecvt>
-//#include <wincodec.h>
-//#include <wincodecsdk.h>
+#include <string_view>
+#include <memory>
+#include <functional>
+#include <algorithm>
+#include <set>
+#include <map>
+#include <vector>
+#include <optional>
+#include <filesystem>
 
-#define for if(0);else for
+// MacType 커스텀 헤더들
+#include "array.h"
+#include "ownedcs.h"
+#include "undocAPI.h"
 
+// 디버깅 및 문자열 처리
 #include <tchar.h>
 #include <stddef.h>
 #define STRSAFE_NO_DEPRECATE
@@ -43,54 +51,79 @@
 #include <malloc.h>
 #include <crtdbg.h>
 
-#include <map>
-#include <string>
-using namespace std;
+// 위험한 매크로 제거 - 현대적 범위 기반 for 루프 사용 권장
+// #define for if(0);else for  // <- 이 매크로는 위험하므로 제거
+
+// std namespace 전체 사용 금지 - 명시적 사용 권장
+// using namespace std;  // <- 제거됨, 필요시 개별적으로 using 선언 사용
 #ifdef _M_IX86
 //#include "optimize/optimize.h"
 #endif
 
-#define FONT_MAGIC_NUMBER 0xA8
+// 현대적 상수 정의 (매크로 대신 constexpr 사용)
+namespace mactype {
+    constexpr size_t FONT_MAGIC_NUMBER = 0xA8;
+    constexpr size_t MAX_CRITICAL_COUNT = 20;
+}
 
-#define ASSERT			_ASSERTE
-#define Assert			_ASSERTE
+// 현대적 디버깅 (매크로 대신 함수 사용 권장)
 #ifdef _DEBUG
-#define new				new(_NORMAL_BLOCK, __FILE__, __LINE__)
+    #define ASSERT(expr) _ASSERTE(expr)
+    #define Assert(expr) _ASSERTE(expr)
+    #define new new(_NORMAL_BLOCK, __FILE__, __LINE__)
+    
+    // 현대적 디버깅 함수
+    template<typename... Args>
+    void debug_trace(const wchar_t* format, Args&&... args) noexcept {
+        wchar_t buffer[1024];
+        swprintf_s(buffer, format, std::forward<Args>(args)...);
+        OutputDebugStringW(buffer);
+    }
+#else
+    #define ASSERT(expr) ((void)0)
+    #define Assert(expr) ((void)0)
+    #define debug_trace(...) ((void)0)
 #endif
 
-#ifndef NOP_FUNCTION
-#if (_MSC_VER >= 1210)
-#define NOP_FUNCTION	__noop
+// 현대적 컴파일러 속성 (C++11+)
+#if defined(_MSC_VER)
+    #define FORCEINLINE __forceinline
+    #define NOINLINE __declspec(noinline)
+    #define NOP_FUNCTION __noop
+#elif defined(__GNUC__)
+    #define FORCEINLINE __attribute__((always_inline)) inline
+    #define NOINLINE __attribute__((noinline))
+    #define NOP_FUNCTION ((void)0)
 #else
-#define NOP_FUNCTION	(void)0
-#endif	//_MSC_VER
-#endif	//!NOP_FUNCTION
-#ifndef C_ASSERT
-#define C_ASSERT(e)		typedef char __C_ASSERT__[(e)?1:-1]
-#endif	//!C_ASSERT
-#ifndef FORCEINLINE
-#if (_MSC_VER >= 1200)
-#define FORCEINLINE		__forceinline
-#else
-#define FORCEINLINE		__inline
-#endif	//_MSC_VER
-#endif	//!FORCEINLINE
+    #define FORCEINLINE inline
+    #define NOINLINE
+    #define NOP_FUNCTION ((void)0)
+#endif
+
+// C++11 static_assert 사용 (C_ASSERT 대체)
+#define C_ASSERT(e) static_assert(e, #e)
 
 
-void Log(char* Msg);
-void Log(wchar_t* Msg);
+// 현대적 로깅 함수 선언 (const 안전성 및 string_view 사용)
+void Log(const char* msg) noexcept;
+void Log(const wchar_t* msg) noexcept;
 
+// 오버로드된 현대적 로깅 함수들
+void Log(std::string_view msg) noexcept;
+void Log(std::wstring_view msg) noexcept;
 
-// convert string to wstring
-std::wstring to_wide_string(const std::string & input);
+// 레거시 문자열 변환 함수들 (사용 비권장 - string_utils 네임스페이스 사용 권장)
+[[deprecated("Use string_utils::utf8_to_utf16 instead")]]
+std::wstring to_wide_string(const std::string& input);
 
-// convert wstring to string 
-std::string to_byte_string(const std::wstring & input);
+[[deprecated("Use string_utils::utf16_to_utf8 instead")]]
+std::string to_byte_string(const std::wstring& input);
 
-// convert a utf-16be string back to utf-16le string
+[[deprecated("Use string_utils functions instead")]]
 std::wstring to_utf16le(const std::wstring& input);
 
-wstring to_lower_case(wstring str);
+[[deprecated("Use string_utils::to_lower instead")]]
+std::wstring to_lower_case(std::wstring_view str);
 
 FORCEINLINE HINSTANCE GetDLLInstance()
 {

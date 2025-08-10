@@ -23,9 +23,17 @@
 #include <malloc.h>
 #include <crtdbg.h>
 
-#define for if(0);else for
+// 위험한 for 매크로 제거 - 현대적 범위 기반 for 루프 사용 권장
+// #define for if(0);else for  // <- 제거됨
+
+// C++17 std::size 사용 권장
 #ifndef _countof
-#define _countof(array)		(sizeof(array) / sizeof((array)[0]))
+    #if __cplusplus >= 201703L
+        #include <iterator>
+        #define _countof(array) std::size(array)
+    #else
+        #define _countof(array) (sizeof(array) / sizeof((array)[0]))
+    #endif
 #endif
 
 #pragma comment(linker, "/subsystem:windows,5.0")
@@ -39,23 +47,45 @@
 #define IDS_DLL			102
 #define IDC_EXEC		103
 
+// 현대적 에러 메시지 표시 함수
+static void ShowMessage(std::string_view msg) noexcept {
+    MessageBoxA(nullptr, msg.data(), "MacType ERROR", MB_OK | MB_ICONSTOP);
+}
+
+static void ShowErrorMessage(UINT id, DWORD code) noexcept
+{
+    constexpr size_t BUFFER_SIZE = 512;
+    constexpr size_t FORMAT_SIZE = 128;
+    
+    std::array<char, BUFFER_SIZE> buffer{};
+    std::array<char, FORMAT_SIZE> format{};
+    
+    if (LoadStringA(GetModuleHandleA(nullptr), id, format.data(), FORMAT_SIZE) > 0) {
+        // 현대적 문자열 포맷팅 (안전한 버전)
+        if (sprintf_s(buffer.data(), BUFFER_SIZE, format.data(), code) > 0) {
+            ShowMessage(std::string_view{ buffer.data() });
+        } else {
+            ShowMessage("MacType: Unknown error occurred");
+        }
+    } else {
+        ShowMessage("MacType: Failed to load error message");
+    }
+}
+
+// constexpr 함수로 현대화
+[[nodiscard]] constexpr HRESULT HresultFromLastError() noexcept
+{
+    const DWORD error_code = GetLastError();
+    return HRESULT_FROM_WIN32(error_code);
+}
+
+// 레거시 호환성을 위한 함수들
 static void showmsg(LPCSTR msg) {
-	MessageBoxA(NULL, msg, "MacType ERROR", MB_OK | MB_ICONSTOP);
+    ShowMessage(msg ? std::string_view{msg} : std::string_view{"Unknown error"});
 }
 
-static void errmsg(UINT id, DWORD code)
-{
-	char  buffer[512];
-	char  format[128];
-	LoadStringA(GetModuleHandleA(NULL), id, format, 128);
-	wnsprintfA(buffer, 512, format, code);
-	showmsg(buffer);
-}
-
-inline HRESULT HresultFromLastError()
-{
-	DWORD dwErr = GetLastError();
-	return HRESULT_FROM_WIN32(dwErr);
+static void errmsg(UINT id, DWORD code) {
+    ShowErrorMessage(id, code);
 }
 
 
