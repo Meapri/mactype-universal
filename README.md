@@ -71,5 +71,36 @@ We have a detailed guide on how you can enable the registry mode manually in [wi
 How to build
 -------------
 
-Check how to build [document](https://github.com/snowie2000/mactype/blob/directwrite/doc/HOWTOBUILD.md)
+### 자동 빌드 (GitHub Actions)
+
+이 리포지토리는 GitHub Actions를 통한 자동 빌드를 지원합니다:
+
+[![Build Status](https://github.com/snowie2000/mactype/workflows/Build%20MacType/badge.svg)](https://github.com/snowie2000/mactype/actions)
+
+- **CI 빌드**: 코드 푸시 시 자동으로 x86/x64 버전 빌드
+- **자동 릴리스**: 태그 생성 시 자동으로 바이너리를 릴리스에 첨부
+- **종속성 자동 관리**: FreeType, Detours, IniParser 등 모든 종속성 자동 빌드
+
+자세한 내용은 [빌드 설명서](.github/BUILD_INSTRUCTIONS.md)를 참조하세요.
+
+### 수동 빌드
+
+빌드 환경 체크:
+```powershell
+.\scripts\check-build-env.ps1
+```
+
+종속성 빌드:
+```powershell
+.\scripts\build-dependencies.ps1 -Platform x86
+.\scripts\build-dependencies.ps1 -Platform x64
+```
+
+MacType 빌드:
+```powershell
+msbuild gdipp.sln -p:Configuration=Release -p:Platform=Win32  # x86
+msbuild gdipp.sln -p:Configuration=Release -p:Platform=x64    # x64
+```
+
+상세한 빌드 방법은 [빌드 문서](doc/HOWTOBUILD.md)를 확인하세요.
 

@@ -1,0 +1,87 @@
+name: Build MacType
+
+on:
+  push:
+    branches: [ "main", "directwrite", "develop" ]
+  pull_request:
+    branches: [ "main", "directwrite" ]
+
+env:
+  # Build configuration
+  BUILD_CONFIGURATION: Release
+  SOLUTION_FILE_PATH: ./gdipp.sln
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        platform: [x86, x64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup Windows SDK
+      uses: GuillaumeFalourd/setup-windows10-sdk-action@v1.11
+      with:
+        sdk-version: 10.0.19041.0
+
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          lib/
+          deps/
+        key: ${{ runner.os }}-deps-${{ hashFiles('**/HOWTOBUILD.md') }}
+        restore-keys: |
+          ${{ runner.os }}-deps-
+
+    - name: Create directories
+      run: |
+        New-Item -ItemType Directory -Force -Path lib
+        New-Item -ItemType Directory -Force -Path deps
+
+    - name: Build dependencies
+      run: |
+        # 빌드 스크립트 실행 권한 설정
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+        
+        # 종속성 빌드
+        .\scripts\build-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }}
+        
+        # 환경 변수 설정
+        echo "FREETYPE_PATH=$PWD/deps/freetype-${{ matrix.platform }}" >> $env:GITHUB_ENV
+        echo "INI_PARSER_PATH=$PWD/deps/iniparser" >> $env:GITHUB_ENV
+
+    - name: Build MacType
+      run: |
+        # Set platform for MSBuild
+        $msbuildPlatform = if ("${{ matrix.platform }}" -eq "x86") { "Win32" } else { "x64" }
+        
+        # Build the solution
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: mactype-${{ matrix.platform }}-${{ env.BUILD_CONFIGURATION }}
+        path: |
+          ${{ env.BUILD_CONFIGURATION }}/
+          **/*.dll
+          **/*.exe
+        retention-days: 30
+
+    - name: Upload release assets
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/upload-artifact@v4
+      with:
+        name: mactype-release-${{ matrix.platform }}
+        path: |
+          ${{ env.BUILD_CONFIGURATION }}/
+          **/*.dll
+          **/*.exe

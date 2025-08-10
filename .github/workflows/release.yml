@@ -1,0 +1,134 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  BUILD_CONFIGURATION: Release
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Setup Windows SDK
+      uses: GuillaumeFalourd/setup-windows10-sdk-action@v1.11
+      with:
+        sdk-version: 10.0.19041.0
+
+    - name: Build dependencies and MacType
+      run: |
+        # Create directories
+        New-Item -ItemType Directory -Force -Path lib
+        New-Item -ItemType Directory -Force -Path deps
+        New-Item -ItemType Directory -Force -Path release
+        
+        # Build all dependencies and MacType for both platforms
+        $platforms = @("x86", "x64")
+        
+        foreach ($platform in $platforms) {
+          Write-Host "Building for platform: $platform"
+          
+          # Build FreeType
+          git clone https://github.com/snowie2000/freetype.git deps/freetype-$platform
+          cd deps/freetype-$platform
+          git apply ../../doc/glyph_to_bitmapex.diff
+          
+          if ($platform -eq "x86") {
+            msbuild builds/windows/vc2010/freetype.sln -p:Configuration=Release -p:Platform=Win32
+            Copy-Item "objs/Win32/Release/freetype.lib" "../../lib/freetype.lib"
+          } else {
+            msbuild builds/windows/vc2010/freetype.sln -p:Configuration=Release -p:Platform=x64
+            Copy-Item "objs/x64/Release/freetype.lib" "../../lib/freetype64.lib"
+          }
+          cd ../..
+          
+          # Build IniParser
+          if (!(Test-Path "deps/iniparser")) {
+            git clone https://github.com/snowie2000/IniParser.git deps/iniparser
+          }
+          cd deps/iniparser
+          
+          if ($platform -eq "x86") {
+            msbuild src/IniParser.sln -p:Configuration=Release -p:Platform=x86
+            Copy-Item "src/IniParser/bin/x86/Release/iniparser.lib" "../../lib/iniparser.lib"
+          } else {
+            msbuild src/IniParser.sln -p:Configuration=Release -p:Platform=x64
+            Copy-Item "src/IniParser/bin/x64/Release/iniparser.lib" "../../lib/iniparser64.lib"
+          }
+          cd ../..
+          
+          # Build wow64ext (only for x86)
+          if ($platform -eq "x86" -and !(Test-Path "deps/wow64ext")) {
+            git clone https://github.com/snowie2000/rewolf-wow64ext.git deps/wow64ext
+            cd deps/wow64ext
+            msbuild wow64ext.sln -p:Configuration=Release -p:Platform=Win32
+            Copy-Item "Release/wow64ext.lib" "../../lib/wow64ext.lib"
+            cd ../..
+          }
+          
+          # Build Detours
+          if (!(Test-Path "deps/detours")) {
+            git clone https://github.com/microsoft/Detours.git deps/detours
+            cd deps/detours
+            nmake
+            cd ../..
+          }
+          
+          cd deps/detours
+          if ($platform -eq "x86") {
+            Copy-Item "lib.X86/detours.lib" "../../lib/detours.lib"
+          } else {
+            Copy-Item "lib.X64/detours.lib" "../../lib/detours64.lib"
+          }
+          cd ../..
+          
+          # Build MacType
+          $msbuildPlatform = if ($platform -eq "x86") { "Win32" } else { "x64" }
+          msbuild gdipp.sln -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform
+          
+          # Copy to release folder
+          $releaseFolder = "release/mactype-$platform"
+          New-Item -ItemType Directory -Force -Path $releaseFolder
+          Copy-Item "${{ env.BUILD_CONFIGURATION }}/*" $releaseFolder -Recurse -Force
+        }
+
+    - name: Create release archives
+      run: |
+        Compress-Archive -Path "release/mactype-x86/*" -DestinationPath "mactype-x86.zip"
+        Compress-Archive -Path "release/mactype-x64/*" -DestinationPath "mactype-x64.zip"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          mactype-x86.zip
+          mactype-x64.zip
+        tag_name: ${{ github.ref_name }}
+        name: MacType ${{ github.ref_name }}
+        body: |
+          ## MacType ${{ github.ref_name }}
+          
+          빌드된 바이너리 파일입니다.
+          
+          ### 파일 설명
+          - `mactype-x86.zip`: 32비트 (x86) 버전
+          - `mactype-x64.zip`: 64비트 (x64) 버전
+          
+          ### 설치 방법
+          1. 해당하는 아키텍처의 zip 파일을 다운로드하세요
+          2. 압축을 해제하고 설치하세요
+          
+          자세한 사용법은 [README](README.md)를 참조하세요.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
