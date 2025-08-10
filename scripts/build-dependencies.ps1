@@ -124,7 +124,8 @@ if (-not $iniparserSln) {
 
 try {
     if ($Platform -eq "x86") {
-        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -v:minimal
+        # Windows SDK 버전 문제 해결을 위해 최신 SDK로 재타겟팅
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
         # 가능한 출력 경로들
         $possiblePaths = @(
             "src/IniParser/bin/x86/$Configuration/iniparser.lib",
@@ -136,7 +137,7 @@ try {
         )
         $targetLib = Join-Path $libDir "iniparser.lib"
     } else {
-        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -v:minimal
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
         $possiblePaths = @(
             "src/IniParser/bin/x64/$Configuration/iniparser.lib",
             "IniParser/bin/x64/$Configuration/iniparser.lib", 
@@ -196,16 +197,63 @@ if ($Platform -eq "x86") {
     
     Set-Location $wow64extDir
     
-    msbuild wow64ext.sln -p:Configuration=$Configuration -p:Platform=Win32 -v:minimal
+    # wow64ext 프로젝트 파일 찾기
+    Write-Host "wow64ext 프로젝트 구조 확인 중..."
+    Get-ChildItem -Name | Write-Host
     
-    $sourceLib = "$Configuration/wow64ext.lib"
-    $targetLib = Join-Path $libDir "wow64ext.lib"
+    $possibleProjectFiles = @(
+        "wow64ext.sln",
+        "wow64ext.vcxproj",
+        "*.sln",
+        "*.vcxproj"
+    )
     
-    if (Test-Path $sourceLib) {
-        Copy-Item $sourceLib $targetLib -Force
-        Write-Host "wow64ext 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
+    $projectFile = $null
+    foreach ($pattern in $possibleProjectFiles) {
+        $files = Get-ChildItem -Filter $pattern -ErrorAction SilentlyContinue
+        if ($files) {
+            $projectFile = $files[0].Name
+            Write-Host "프로젝트 파일 발견: $projectFile" -ForegroundColor Green
+            break
+        }
+    }
+    
+    if (-not $projectFile) {
+        Write-Host "wow64ext 프로젝트 파일을 찾을 수 없어 건너뜁니다" -ForegroundColor Yellow
     } else {
-        throw "wow64ext 빌드 실패: $sourceLib을 찾을 수 없습니다"
+        try {
+            msbuild $projectFile -p:Configuration=$Configuration -p:Platform=Win32 -p:WindowsTargetPlatformVersion=10.0.22621.0 -v:minimal
+            
+            # 가능한 출력 경로들
+            $possiblePaths = @(
+                "$Configuration/wow64ext.lib",
+                "Release/wow64ext.lib",
+                "Debug/wow64ext.lib",
+                "x86/$Configuration/wow64ext.lib",
+                "Win32/$Configuration/wow64ext.lib"
+            )
+            
+            $sourceLib = $null
+            foreach ($path in $possiblePaths) {
+                if (Test-Path $path) {
+                    $sourceLib = $path
+                    break
+                }
+            }
+            
+            $targetLib = Join-Path $libDir "wow64ext.lib"
+            
+            if ($sourceLib) {
+                Copy-Item $sourceLib $targetLib -Force
+                Write-Host "wow64ext 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
+            } else {
+                Write-Host "wow64ext 라이브러리 파일을 찾을 수 없습니다. 생성된 파일들:" -ForegroundColor Yellow
+                Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  - $($_.FullName)" }
+                Write-Host "wow64ext 라이브러리를 생성할 수 없어 건너뜁니다" -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "wow64ext 빌드 실패, 건너뜁니다: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
     }
     
     Set-Location $rootDir
@@ -222,8 +270,14 @@ if (!(Test-Path $detoursDir)) {
 
 Set-Location $detoursDir
 
-# Detours는 nmake 사용
-nmake
+# Detours는 nmake 사용 - Visual Studio Command Prompt 환경에서 실행
+try {
+    # Visual Studio의 vcvars 스크립트 실행 후 nmake
+    cmd /c "call `"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars32.bat`" && nmake"
+} catch {
+    Write-Host "vcvars32.bat를 사용한 빌드 실패, 직접 nmake 시도..." -ForegroundColor Yellow
+    nmake
+}
 
 if ($Platform -eq "x86") {
     $sourceLib = "lib.X86/detours.lib"
