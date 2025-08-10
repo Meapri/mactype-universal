@@ -80,8 +80,8 @@ EXTERN_C HRESULT WINAPI GdippDllGetVersion(DLLVERSIONINFO* pdvi)
 
 #endif	//!_GDIPP_EXE
 
-extern volatile LONG interlock;
-extern volatile LONG g_bHookEnabled;
+extern volatile long interlock;
+extern volatile long g_bHookEnabled;
 #include "gdiPlusFlat2.h"
 
 #ifdef USE_DETOURS
