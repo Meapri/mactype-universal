@@ -385,7 +385,7 @@ public:
 			m_nMaxSizes = FTC_MAX_SIZES_DEFAULT;
 		//extern BOOL g_EngineCreateFont;
 			if (pSettings->FontSubstitutes() < SETTING_FONTSUBSTITUTE_ALL)
-				m_ggoFont = CreateFont(10,0,0,0,weight,italic,0,0,DEFAULT_CHARSET,0,FONT_MAGIC_NUMBER,0,0,name);	
+				m_ggoFont = CreateFont(10,0,0,0,weight,italic,0,0,DEFAULT_CHARSET,0,mactype::FONT_MAGIC_NUMBER,0,0,name);	
 					//use magic number to create unsubstitud font
 			else
 				m_ggoFont = CreateFont(10,0,0,0,weight,italic,0,0,DEFAULT_CHARSET,0,0,0,0,name);
