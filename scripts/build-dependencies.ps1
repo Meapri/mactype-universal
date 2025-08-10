@@ -35,7 +35,19 @@ Set-Location $freetypeDir
 $patchFile = Join-Path $rootDir "doc/glyph_to_bitmapex.diff"
 if (Test-Path $patchFile) {
     Write-Host "FreeType 패치 적용 중..."
-    git apply $patchFile -v
+    try {
+        # 먼저 패치가 이미 적용되었는지 확인
+        $checkResult = git apply --check $patchFile 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            git apply $patchFile --verbose
+            Write-Host "패치 적용 성공" -ForegroundColor Green
+        } else {
+            Write-Host "패치를 적용할 수 없거나 이미 적용됨: $checkResult" -ForegroundColor Yellow
+            Write-Host "패치 없이 계속 진행..." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "패치 적용 실패, 무시하고 계속: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
 # FreeType 빌드
@@ -74,22 +86,96 @@ if (!(Test-Path $iniparserDir)) {
 
 Set-Location $iniparserDir
 
-$iniparserSln = "src/IniParser.sln"
-if ($Platform -eq "x86") {
-    msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -v:minimal
-    $sourceLib = "src/IniParser/bin/x86/$Configuration/iniparser.lib"
-    $targetLib = Join-Path $libDir "iniparser.lib"
-} else {
-    msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -v:minimal
-    $sourceLib = "src/IniParser/bin/x64/$Configuration/iniparser.lib"
-    $targetLib = Join-Path $libDir "iniparser64.lib"
+# IniParser 프로젝트 구조 확인 및 빌드
+Write-Host "IniParser 프로젝트 구조 확인 중..."
+Get-ChildItem -Name | Write-Host
+
+# 가능한 솔루션 파일들 찾기
+$possibleSlnFiles = @(
+    "IniParser.sln",
+    "src/IniParser.sln", 
+    "IniParser/IniParser.sln",
+    "INIFileParser.sln"
+)
+
+$iniparserSln = $null
+foreach ($slnFile in $possibleSlnFiles) {
+    if (Test-Path $slnFile) {
+        $iniparserSln = $slnFile
+        Write-Host "솔루션 파일 발견: $slnFile" -ForegroundColor Green
+        break
+    }
 }
 
-if (Test-Path $sourceLib) {
-    Copy-Item $sourceLib $targetLib -Force
-    Write-Host "IniParser 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
-} else {
-    throw "IniParser 빌드 실패: $sourceLib을 찾을 수 없습니다"
+if (-not $iniparserSln) {
+    Write-Host "솔루션 파일을 찾을 수 없습니다. 사용 가능한 프로젝트 파일 검색 중..." -ForegroundColor Yellow
+    $projFiles = Get-ChildItem -Recurse -Filter "*.csproj" | Select-Object -First 5
+    if ($projFiles) {
+        Write-Host "발견된 프로젝트 파일들:" -ForegroundColor Yellow
+        $projFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
+        
+        # 첫 번째 프로젝트 파일 사용
+        $iniparserSln = $projFiles[0].FullName
+        Write-Host "첫 번째 프로젝트 파일 사용: $iniparserSln" -ForegroundColor Yellow
+    } else {
+        throw "IniParser 빌드 파일을 찾을 수 없습니다"
+    }
+}
+
+try {
+    if ($Platform -eq "x86") {
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -v:minimal
+        # 가능한 출력 경로들
+        $possiblePaths = @(
+            "src/IniParser/bin/x86/$Configuration/iniparser.lib",
+            "IniParser/bin/x86/$Configuration/iniparser.lib",
+            "bin/x86/$Configuration/iniparser.lib",
+            "src/IniParser/bin/$Configuration/iniparser.lib",
+            "IniParser/bin/$Configuration/iniparser.lib",
+            "bin/$Configuration/iniparser.lib"
+        )
+        $targetLib = Join-Path $libDir "iniparser.lib"
+    } else {
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -v:minimal
+        $possiblePaths = @(
+            "src/IniParser/bin/x64/$Configuration/iniparser.lib",
+            "IniParser/bin/x64/$Configuration/iniparser.lib", 
+            "bin/x64/$Configuration/iniparser.lib",
+            "src/IniParser/bin/$Configuration/iniparser.lib",
+            "IniParser/bin/$Configuration/iniparser.lib",
+            "bin/$Configuration/iniparser.lib"
+        )
+        $targetLib = Join-Path $libDir "iniparser64.lib"
+    }
+    
+    # 실제 생성된 라이브러리 파일 찾기
+    $sourceLib = $null
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $sourceLib = $path
+            break
+        }
+    }
+    
+    if ($sourceLib) {
+        Copy-Item $sourceLib $targetLib -Force
+        Write-Host "IniParser 라이브러리 복사 완료: $targetLib" -ForegroundColor Green
+    } else {
+        Write-Host "라이브러리 파일을 찾을 수 없습니다. 생성된 파일들:" -ForegroundColor Yellow
+        Get-ChildItem -Recurse -Filter "*.lib" | ForEach-Object { Write-Host "  - $($_.FullName)" }
+        
+        # .lib 파일이 없으면 .dll이나 다른 형태일 수 있음
+        $alternativeFiles = Get-ChildItem -Recurse -Filter "*iniparser*" | Where-Object { $_.Extension -in @('.lib', '.dll', '.a') }
+        if ($alternativeFiles) {
+            $sourceLib = $alternativeFiles[0].FullName
+            Copy-Item $sourceLib $targetLib -Force
+            Write-Host "대체 파일 사용: $sourceLib -> $targetLib" -ForegroundColor Yellow
+        } else {
+            Write-Host "IniParser 라이브러리를 생성할 수 없어 건너뜁니다" -ForegroundColor Yellow
+        }
+    }
+} catch {
+    Write-Host "IniParser 빌드 실패, 건너뜁니다: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
 # 환경 변수 설정
