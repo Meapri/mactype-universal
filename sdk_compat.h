@@ -176,4 +176,29 @@ typedef unsigned long ULONG_PTR;
 #define INVALID_HANDLE_VALUE ((HANDLE)(LONG_PTR)-1)
 #endif
 
+// 12. min/max 함수 정의 (NOMINMAX로 인해 누락된 것들)
+#ifndef max
+template<typename T>
+constexpr const T& max(const T& a, const T& b) {
+    return (a < b) ? b : a;
+}
+#endif
+
+#ifndef min
+template<typename T>
+constexpr const T& min(const T& a, const T& b) {
+    return (a < b) ? a : b;
+}
+#endif
+
+// 13. ASSERT 매크로 정의
+#ifndef ASSERT
+#ifdef _DEBUG
+#include <cassert>
+#define ASSERT(expr) assert(expr)
+#else
+#define ASSERT(expr) ((void)0)
+#endif
+#endif
+
 #endif // _SDK_COMPAT_H_

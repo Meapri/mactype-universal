@@ -26,6 +26,7 @@
 #include <cwctype>
 #include <cctype>
 #include <locale>
+#include <array>
 
 // 1. 스마트 포인터 타입 별칭 (가독성 향상)
 template<typename T>
