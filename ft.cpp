@@ -1220,14 +1220,14 @@ CGGOOutlineGlyph::init(DWORD bufsize, PVOID bufp, const GLYPHMETRICS& gm)
 		return false;
 	}
 	outline.points = (FT_Vector*)calloc(outline.n_points, sizeof * outline.points);
-	outline.tags = (unsigned char*)calloc(outline.n_points, sizeof * outline.tags);
-	outline.contours = (unsigned short*)calloc(outline.n_contours, sizeof * outline.contours);
+	outline.tags = (char*)calloc(outline.n_points, sizeof * outline.tags);
+	outline.contours = (short*)calloc(outline.n_contours, sizeof * outline.contours);
 	if (!outline.points || !outline.tags || !outline.contours) {
 		done();
 		return false;
 	}
 
-	unsigned short* cp = outline.contours;
+	short* cp = outline.contours;
 	short ppos = 0;
 
 	ttphp = (LPTTPOLYGONHEADER)bufp;

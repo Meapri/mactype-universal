@@ -828,7 +828,7 @@ emit_dw(0xD0FF);	//call eax
 
 		//なぜかGetProcAddressでLoadLibraryWのアドレスが正しく取れないことがあるので
 		//kernel32のヘッダから自前で取得する
-		static FARPROC pfn = (FARPROC)((INT_PTR)CDllHelper::MyGetProcAddress(GetModuleHandle(L"kernel32.dll"), L"LoadLibraryW") - (INT_PTR)GetModuleHandle(L"kernel32.dll"));
+		static FARPROC pfn = (FARPROC)((INT_PTR)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "LoadLibraryW") - (INT_PTR)GetModuleHandle(L"kernel32.dll"));
 		/*WCHAR msg[500] = { 0 };
 		wsprintf(msg, L"API paddr: 0x%I64x\r\nOffset: %x\r\nAPI addr: 0x%I64x\r\nKernel32.dll: 0x%I64x\r\nKernelBase: 0x%I64x", (DWORD_PTR)pfn, *(PDWORD)pfn, *(PDWORD)pfn + (DWORD_PTR)GetModuleHandle(L"kernel32.dll"),
 			(DWORD_PTR)GetModuleHandle(L"kernel32.dll"), (DWORD_PTR)GetModuleHandle(L"kernelbase.dll"));
