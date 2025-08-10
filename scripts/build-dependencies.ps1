@@ -455,13 +455,51 @@ if (!(Test-Path $detoursDir)) {
 
 Set-Location $detoursDir
 
-# Detours는 nmake 사용 - Visual Studio Command Prompt 환경에서 실행
+# Detours 빌드 (샘플 제외하고 핵심 라이브러리만)
+Write-Host "Detours 라이브러리 빌드 중..." -ForegroundColor Yellow
+
 try {
-    # Visual Studio의 vcvars 스크립트 실행 후 nmake
-    cmd /c "call `"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars32.bat`" && nmake"
+    # 프로젝트 구조 확인
+    Write-Host "Detours 프로젝트 구조:" -ForegroundColor Cyan
+    Get-ChildItem -Name | ForEach-Object { Write-Host "  - $_" }
+    
+    # src 폴더만 빌드 (있다면)
+    if (Test-Path "src") {
+        Write-Host "src 폴더에서 핵심 라이브러리만 빌드..." -ForegroundColor Cyan
+        Set-Location "src"
+        nmake
+        Set-Location ".."
+    } else {
+        # Makefile 수정하여 샘플 제외
+        Write-Host "Makefile 수정하여 샘플 빌드 제외..." -ForegroundColor Cyan
+        
+        if (Test-Path "Makefile") {
+            # Makefile 백업
+            Copy-Item "Makefile" "Makefile.backup"
+            
+            # samples 관련 줄 제거
+            $makefile = Get-Content "Makefile"
+            $newMakefile = $makefile | Where-Object { 
+                $_ -notmatch "samples" -and 
+                $_ -notmatch "SUBDIRS.*samples" -and
+                $_ -notmatch "cd.*samples"
+            }
+            $newMakefile | Set-Content "Makefile"
+            
+            Write-Host "수정된 Makefile로 빌드 실행..." -ForegroundColor Cyan
+        }
+        
+        # 간단한 nmake 실행
+        nmake
+    }
 } catch {
-    Write-Host "vcvars32.bat를 사용한 빌드 실패, 직접 nmake 시도..." -ForegroundColor Yellow
-    nmake
+    Write-Host "Detours 빌드 실패: $($_.Exception.Message)" -ForegroundColor Yellow
+    
+    # 이미 빌드된 라이브러리 확인
+    Write-Host "기존 라이브러리 파일 확인 중..." -ForegroundColor Yellow
+    Get-ChildItem -Recurse -Filter "*.lib" -ErrorAction SilentlyContinue | ForEach-Object { 
+        Write-Host "  발견: $($_.FullName)" -ForegroundColor Green
+    }
 }
 
 if ($Platform -eq "x86") {
