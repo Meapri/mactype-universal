@@ -1,0 +1,48 @@
+{
+  "name": "mactype",
+  "version": "2.0.0",
+  "description": "Better font rendering for Windows",
+  "license": "GPL-2.0",
+  "dependencies": [
+    {
+      "name": "freetype",
+      "version>=": "2.13.2",
+      "features": [
+        "brotli",
+        "bzip2",
+        "png",
+        "zlib"
+      ]
+    },
+    {
+      "name": "detours",
+      "version>=": "4.0.1"
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.11.3"
+    }
+  ],
+  "builtin-baseline": "2024.01.12",
+  "overrides": [
+    {
+      "name": "freetype",
+      "version": "2.13.2#3"
+    },
+    {
+      "name": "detours",
+      "version": "4.0.1#5"
+    }
+  ],
+  "features": {
+    "test": {
+      "description": "Build tests",
+      "dependencies": [
+        "gtest"
+      ]
+    },
+    "examples": {
+      "description": "Build examples"
+    }
+  }
+}

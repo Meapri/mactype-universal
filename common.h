@@ -60,10 +60,48 @@
 //#include "optimize/optimize.h"
 #endif
 
+// 아키텍처 감지 및 설정
+#if defined(_M_ARM64) || defined(__aarch64__)
+    #define MACTYPE_ARM64 1
+    #define MACTYPE_ARCHITECTURE_NAME L"ARM64"
+#elif defined(_M_X64) || defined(__x86_64__)
+    #define MACTYPE_X64 1
+    #define MACTYPE_ARCHITECTURE_NAME L"x64"
+#elif defined(_M_IX86) || defined(__i386__)
+    #define MACTYPE_X86 1
+    #define MACTYPE_ARCHITECTURE_NAME L"x86"
+#else
+    #define MACTYPE_UNKNOWN_ARCH 1
+    #define MACTYPE_ARCHITECTURE_NAME L"Unknown"
+#endif
+
 // 현대적 상수 정의 (매크로 대신 constexpr 사용)
 namespace mactype {
     constexpr size_t FONT_MAGIC_NUMBER = 0xA8;
     constexpr size_t MAX_CRITICAL_COUNT = 20;
+    
+    // 아키텍처별 설정
+    #ifdef MACTYPE_ARM64
+        constexpr bool IS_ARM64 = true;
+        constexpr bool IS_X64 = false;
+        constexpr bool IS_X86 = false;
+        constexpr size_t POINTER_SIZE = 8;
+    #elif defined(MACTYPE_X64)
+        constexpr bool IS_ARM64 = false;
+        constexpr bool IS_X64 = true;
+        constexpr bool IS_X86 = false;
+        constexpr size_t POINTER_SIZE = 8;
+    #elif defined(MACTYPE_X86)
+        constexpr bool IS_ARM64 = false;
+        constexpr bool IS_X64 = false;
+        constexpr bool IS_X86 = true;
+        constexpr size_t POINTER_SIZE = 4;
+    #else
+        constexpr bool IS_ARM64 = false;
+        constexpr bool IS_X64 = false;
+        constexpr bool IS_X86 = false;
+        constexpr size_t POINTER_SIZE = sizeof(void*);
+    #endif
 }
 
 // 현대적 디버깅 (매크로 대신 함수 사용 권장)

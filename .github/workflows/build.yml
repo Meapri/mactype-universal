@@ -17,7 +17,7 @@ jobs:
 
     strategy:
       matrix:
-        platform: [x86, x64]
+        platform: [x86, x64, ARM64]
 
     steps:
     - name: Checkout code
@@ -91,22 +91,32 @@ jobs:
         New-Item -ItemType Directory -Force -Path lib
         New-Item -ItemType Directory -Force -Path deps
 
-    - name: Build dependencies
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: '2024.01.12'
+        
+    - name: Build modern dependencies (vcpkg-based)
       run: |
         # 빌드 스크립트 실행 권한 설정
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         
-        # 종속성 빌드
-        .\scripts\build-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }}
+        # 현대적 vcpkg 기반 종속성 빌드
+        .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }} -UseSystemVcpkg
         
-        # 환경 변수 설정 (스크립트에서 자동 설정되지만 GitHub Actions용으로 추가)
-        echo "FREETYPE_PATH=$PWD/deps/freetype-${{ matrix.platform }}" >> $env:GITHUB_ENV
-        echo "INI_PARSER_PATH=$PWD/deps/iniparser" >> $env:GITHUB_ENV
+        # vcpkg 통합 환경 변수 설정
+        echo "VCPKG_INSTALLED_DIR=$PWD/deps/vcpkg_installed" >> $env:GITHUB_ENV
+        echo "CMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
 
     - name: Build MacType
       run: |
         # Set platform for MSBuild
-        $msbuildPlatform = if ("${{ matrix.platform }}" -eq "x86") { "Win32" } else { "x64" }
+        $msbuildPlatform = switch ("${{ matrix.platform }}") {
+          "x86" { "Win32" }
+          "x64" { "x64" }
+          "ARM64" { "ARM64" }
+          default { "x64" }
+        }
         
         # 호환 가능한 Windows SDK 버전으로 빌드
         $sdkVersion = $env:WINDOWS_SDK_VERSION

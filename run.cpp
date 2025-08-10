@@ -90,14 +90,22 @@ static void errmsg(UINT id, DWORD code) {
 
 
 #include "detours.h"
-#ifdef _M_IX86
-#pragma comment (lib, "detours.lib")
-const auto MacTypeDll = L"MacType.dll";
-const auto MacTypeDllA = "MacType.dll";
+
+// 아키텍처별 라이브러리 및 DLL 이름 설정
+#if defined(_M_ARM64)
+    #pragma comment (lib, "detours_arm64.lib")
+    const auto MacTypeDll = L"MacType_ARM64.dll";
+    const auto MacTypeDllA = "MacType_ARM64.dll";
+#elif defined(_M_X64)
+    #pragma comment (lib, "detours64.lib")
+    const auto MacTypeDll = L"MacType64.dll";
+    const auto MacTypeDllA = "MacType64.dll";
+#elif defined(_M_IX86)
+    #pragma comment (lib, "detours.lib")
+    const auto MacTypeDll = L"MacType.dll";
+    const auto MacTypeDllA = "MacType.dll";
 #else
-#pragma comment (lib, "detours64.lib")
-const auto MacTypeDll = L"MacType64.dll";
-const auto MacTypeDllA = "MacType64.dll";
+    #error "Unsupported architecture"
 #endif
 
 
