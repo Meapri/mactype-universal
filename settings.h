@@ -12,6 +12,31 @@
 extern "C" {
 	void FT_LCDMode_Set(FT_Library library, int mode);
 }
+
+// MacType INI 파서 클래스 정의
+class CParseIni {
+public:
+    class Section {
+    public:
+        class Value {
+        public:
+            int ToInt() const { return 0; }
+            bool ToBool() const { return false; }
+            double ToDouble() const { return 0.0; }
+            std::wstring ToString() const { return L""; }
+            operator LPCTSTR() const { return L""; }
+        };
+        
+        bool IsValueExists(LPCTSTR key) const { return false; }
+        Value operator[](LPCTSTR key) const { return Value(); }
+        operator LPCTSTR() const { return L""; }
+    };
+    
+    bool IsPartExists(LPCTSTR section) const { return false; }
+    Section operator[](LPCTSTR section) const { return Section(); }
+    void Clear() {}
+    void LoadFromFile(LPCTSTR filename) {}
+};
 #include "json.hpp"
 #include <thread>
 
