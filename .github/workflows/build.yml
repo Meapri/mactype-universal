@@ -91,22 +91,27 @@ jobs:
         New-Item -ItemType Directory -Force -Path lib
         New-Item -ItemType Directory -Force -Path deps
 
-    - name: Setup vcpkg
-      uses: lukka/run-vcpkg@v11
-      with:
-        vcpkgGitCommitId: '2024.01.12'
+    - name: Setup vcpkg manually
+      run: |
+        # vcpkg 수동 설치 (안정적인 방법)
+        git clone https://github.com/Microsoft/vcpkg.git vcpkg
+        cd vcpkg
+        .\bootstrap-vcpkg.bat
+        echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
+        echo "$PWD" >> $env:GITHUB_PATH
+        cd ..
         
-    - name: Build modern dependencies (vcpkg-based)
+    - name: Build modern dependencies (vcpkg-based)  
       run: |
         # 빌드 스크립트 실행 권한 설정
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         
         # 현대적 vcpkg 기반 종속성 빌드
-        .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }} -UseSystemVcpkg
+        .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }}
         
         # vcpkg 통합 환경 변수 설정
         echo "VCPKG_INSTALLED_DIR=$PWD/deps/vcpkg_installed" >> $env:GITHUB_ENV
-        echo "CMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+        echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
 
     - name: Build MacType
       run: |

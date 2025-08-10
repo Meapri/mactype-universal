@@ -11,7 +11,10 @@ param(
     [string]$VcpkgRoot = "$env:VCPKG_ROOT",
     
     [Parameter(Mandatory=$false)]
-    [switch]$UseSystemVcpkg = $false
+    [switch]$UseSystemVcpkg = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$SkipVcpkgInstall = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,25 +34,42 @@ New-Item -ItemType Directory -Force -Path $depsDir | Out-Null
 
 # vcpkg 설정 확인
 if (-not $VcpkgRoot -or -not (Test-Path $VcpkgRoot)) {
-    if ($UseSystemVcpkg) {
-        Write-Host "시스템 vcpkg 경로를 찾는 중..." -ForegroundColor Yellow
-        $VcpkgRoot = (Get-Command vcpkg -ErrorAction SilentlyContinue).Source | Split-Path
-        if (-not $VcpkgRoot) {
-            throw "vcpkg를 찾을 수 없습니다. vcpkg를 설치하거나 VCPKG_ROOT 환경 변수를 설정하세요."
+    # GitHub Actions에서 이미 설치된 vcpkg 사용
+    $possiblePaths = @(
+        (Join-Path $rootDir "vcpkg"),
+        "$env:VCPKG_ROOT",
+        (Join-Path $depsDir "vcpkg")
+    )
+    
+    foreach ($path in $possiblePaths) {
+        if ($path -and (Test-Path $path)) {
+            $VcpkgRoot = $path
+            Write-Host "vcpkg 발견: $VcpkgRoot" -ForegroundColor Green
+            break
         }
-    } else {
-        # vcpkg를 로컬에 설치
-        $VcpkgRoot = Join-Path $depsDir "vcpkg"
-        if (-not (Test-Path $VcpkgRoot)) {
-            Write-Host "vcpkg 다운로드 중..." -ForegroundColor Yellow
-            git clone https://github.com/Microsoft/vcpkg.git $VcpkgRoot
-            Set-Location $VcpkgRoot
-            if ($IsWindows -or $env:OS -eq "Windows_NT") {
-                .\bootstrap-vcpkg.bat
-            } else {
-                ./bootstrap-vcpkg.sh
+    }
+    
+    if (-not $VcpkgRoot -or -not (Test-Path $VcpkgRoot)) {
+        if ($UseSystemVcpkg) {
+            Write-Host "시스템 vcpkg 경로를 찾는 중..." -ForegroundColor Yellow
+            $VcpkgRoot = (Get-Command vcpkg -ErrorAction SilentlyContinue).Source | Split-Path
+            if (-not $VcpkgRoot) {
+                throw "vcpkg를 찾을 수 없습니다. vcpkg를 설치하거나 VCPKG_ROOT 환경 변수를 설정하세요."
             }
-            Set-Location $rootDir
+        } else {
+            # vcpkg를 로컬에 설치
+            $VcpkgRoot = Join-Path $depsDir "vcpkg"
+            if (-not (Test-Path $VcpkgRoot)) {
+                Write-Host "vcpkg 다운로드 중..." -ForegroundColor Yellow
+                git clone https://github.com/Microsoft/vcpkg.git $VcpkgRoot
+                Set-Location $VcpkgRoot
+                if ($IsWindows -or $env:OS -eq "Windows_NT") {
+                    .\bootstrap-vcpkg.bat
+                } else {
+                    ./bootstrap-vcpkg.sh
+                }
+                Set-Location $rootDir
+            }
         }
     }
 }
