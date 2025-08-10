@@ -1009,7 +1009,7 @@ public:
 			}
 			DestroyWindow(this->m_msgwnd);
 		};
-		auto wndThread = thread(run);
+		auto wndThread = std::thread(run);
 		wndThread.detach();
 		WaitForSingleObject(event, 10000);
 		CloseHandle(event);
