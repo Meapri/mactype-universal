@@ -184,7 +184,7 @@ Write-Host "추가 의존성 빌드 중..." -ForegroundColor Yellow
 $iniparserDir = Join-Path $depsDir "ini-parser"
 if (-not (Test-Path $iniparserDir)) {
     Write-Host "INI 파서 다운로드 중..." -ForegroundColor Cyan
-    git clone https://github.com/rickyah/ini-parser.git $iniparserDir
+    git clone https://github.com/snowie2000/ini-parser.git $iniparserDir
 }
 
 # INI 파서는 .NET/C# 라이브러리이므로 MacType에서 직접 사용하지 않을 수 있음
@@ -218,6 +218,31 @@ if ($Platform -eq "x86") {
         }
     }
     Set-Location $rootDir
+}
+
+# IniParser 헤더 복사
+Write-Host "IniParser 헤더 복사 중..." -ForegroundColor Yellow
+$includeDir = Join-Path $depsDir "include"
+New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
+
+if (Test-Path $iniparserDir) {
+    $iniparserSrcDir = Join-Path $iniparserDir "src"
+    if (Test-Path $iniparserSrcDir) {
+        $iniparserHeaders = @("iniparser.h", "dictionary.h")
+        foreach ($header in $iniparserHeaders) {
+            $sourcePath = Join-Path $iniparserSrcDir $header
+            if (Test-Path $sourcePath) {
+                Copy-Item $sourcePath $includeDir -Force
+                Write-Host "IniParser 헤더 복사: $header" -ForegroundColor Green
+            } else {
+                Write-Host "경고: IniParser 헤더 ($header)를 찾을 수 없습니다: $sourcePath" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "경고: IniParser src 디렉터리를 찾을 수 없습니다: $iniparserSrcDir" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "경고: IniParser 디렉터리를 찾을 수 없습니다: $iniparserDir" -ForegroundColor Yellow
 }
 
 Write-Host "=== 현대적 종속성 빌드 완료 ===" -ForegroundColor Green

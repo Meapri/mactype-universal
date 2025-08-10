@@ -14,7 +14,7 @@
 #include <Uxtheme.h>
 #include <usp10.h>
 
-// DirectWrite & Direct2D 헤더들
+// DirectWrite & Direct2D 헤더들 (최신 버전 순서대로)
 #include <d2d1.h>
 #include <d2d1_1.h>
 #include <d2d1_2.h>
@@ -30,6 +30,14 @@
 #include <dxgi1_4.h>
 #include <dxgi1_5.h>
 #include <dxgi1_6.h>
+
+// 최신 Windows 10/11 SDK의 추가 D2D1 헤더들
+#ifdef _WIN32_WINNT_WIN10
+    // ID2D1Device3~6, ID2D1Factory4~7 등을 위한 조건부 include
+    #pragma comment(lib, "d2d1.lib")
+    #pragma comment(lib, "dwrite.lib")
+    #pragma comment(lib, "dxgi.lib")
+#endif
 
 // 표준 라이브러리 헤더들 (현대적)
 #include <string>
