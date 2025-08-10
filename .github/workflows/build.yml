@@ -33,8 +33,8 @@ jobs:
         $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name
         $sdkVersions | ForEach-Object { echo "  - $($_.Name)" }
         
-        # 안정적인 SDK 버전 선택 (역순으로 확인하여 가장 적절한 버전 찾기)
-        $preferredVersions = @("10.0.22621.0", "10.0.22000.0", "10.0.19041.0", "10.0.18362.0", "10.0.17763.0")
+        # MacType 호환성을 위해 가장 오래된 SDK 버전 우선 선택
+        $preferredVersions = @("10.0.17763.0", "10.0.18362.0", "10.0.19041.0", "10.0.20348.0", "10.0.22000.0")
         $selectedSdk = $null
         
         foreach ($version in $preferredVersions) {
@@ -46,10 +46,17 @@ jobs:
           }
         }
         
-        # 찾지 못했으면 첫 번째 사용 가능한 버전 사용
+        # 찾지 못했으면 가장 오래된 사용 가능한 버전 사용 (MacType 호환성을 위해)
         if (-not $selectedSdk -and $sdkVersions) {
-          $selectedSdk = $sdkVersions[0].Name
-          echo "기본 Windows SDK 사용: $selectedSdk"
+          # 버전 번호 기준으로 정렬하여 가장 오래된 것 선택
+          $oldestSdk = $sdkVersions | Where-Object { $_.Name -match "^\d+\.\d+\.\d+\.\d+$" } | Sort-Object Name | Select-Object -First 1
+          if ($oldestSdk) {
+            $selectedSdk = $oldestSdk.Name
+            echo "MacType 호환성을 위해 가장 오래된 SDK 사용: $selectedSdk"
+          } else {
+            $selectedSdk = $sdkVersions[0].Name
+            echo "기본 Windows SDK 사용: $selectedSdk"
+          }
         }
         
         if ($selectedSdk) {
@@ -104,7 +111,7 @@ jobs:
         # 호환 가능한 Windows SDK 버전으로 빌드
         $sdkVersion = $env:WINDOWS_SDK_VERSION
         if (-not $sdkVersion) {
-          $sdkVersion = "10.0.22621.0"  # 기본값
+          $sdkVersion = "10.0.20348.0"  # MacType 호환성을 위한 더 오래된 기본값
         }
         
         echo "사용할 Windows SDK 버전: $sdkVersion"

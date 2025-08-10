@@ -213,7 +213,7 @@ try {
         # Windows SDK 버전 문제 해결을 위해 최신 SDK로 재타겟팅
         Write-Host "IniParser x86 빌드 중..." -ForegroundColor Cyan
         # 안정적인 SDK 버전 사용
-        $sdkVersion = if ($env:WINDOWS_SDK_VERSION) { $env:WINDOWS_SDK_VERSION } else { "10.0.22621.0" }
+        $sdkVersion = if ($env:WINDOWS_SDK_VERSION) { $env:WINDOWS_SDK_VERSION } else { "10.0.20348.0" }
         msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
         # 가능한 출력 경로들
         $possiblePaths = @(
@@ -228,7 +228,7 @@ try {
     } else {
         Write-Host "IniParser x64 빌드 중..." -ForegroundColor Cyan
         # 안정적인 SDK 버전 사용
-        $sdkVersion = if ($env:WINDOWS_SDK_VERSION) { $env:WINDOWS_SDK_VERSION } else { "10.0.22621.0" }
+        $sdkVersion = if ($env:WINDOWS_SDK_VERSION) { $env:WINDOWS_SDK_VERSION } else { "10.0.20348.0" }
         msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
         $possiblePaths = @(
             "src/IniParser/bin/x64/$Configuration/iniparser.lib",
