@@ -7,6 +7,11 @@
 #include <VersionHelpers.h>
 #include <freetype/ftmodapi.h>
 #include <iniparser.h>
+
+// MacType FreeType 확장 함수 선언
+extern "C" {
+	void FT_LCDMode_Set(FT_Library library, int mode);
+}
 #include "json.hpp"
 #include <thread>
 

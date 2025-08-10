@@ -196,7 +196,7 @@ struct FREETYPE_PARAMS
 	BYTE alphatuner;
 	LOGFONTW* lplf;
 	OUTLINETEXTMETRIC* otm;
-	wstring strFamilyName, strFullName;
+	std::wstring strFamilyName, strFullName;
 
 	FREETYPE_PARAMS()
 	{
@@ -221,8 +221,8 @@ struct FREETYPE_PARAMS
 		if (otm)
 		{
 			strFamilyName = (LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpFamilyName);
-			strFullName = wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpFullName));
-			std::wstring strStyleName = wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpStyleName));
+			strFullName = std::wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpFullName));
+			std::wstring strStyleName = std::wstring((LPWSTR)((DWORD_PTR)otm + (DWORD_PTR)otm->otmpStyleName));
 
 			strFullName = MakeUniqueFontName(strFullName, strFamilyName, strStyleName);
 			if (strFamilyName.size() > 0 && strFamilyName.c_str()[0] == L'@')
