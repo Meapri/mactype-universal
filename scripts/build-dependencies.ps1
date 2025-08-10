@@ -211,7 +211,8 @@ if (-not $iniparserSln) {
 try {
     if ($Platform -eq "x86") {
         # Windows SDK 버전 문제 해결을 위해 최신 SDK로 재타겟팅
-        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -p:WindowsTargetPlatformVersion=10.0.22621.0 -p:PlatformToolset=v143 -p:VCTargetsPath="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170" -v:minimal
+        Write-Host "IniParser x86 빌드 중..." -ForegroundColor Cyan
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x86 -p:WindowsTargetPlatformVersion=10.0.22621.0 -p:PlatformToolset=v143 -v:minimal
         # 가능한 출력 경로들
         $possiblePaths = @(
             "src/IniParser/bin/x86/$Configuration/iniparser.lib",
@@ -223,7 +224,8 @@ try {
         )
         $targetLib = Join-Path $libDir "iniparser.lib"
     } else {
-        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -p:PlatformToolset=v143 -p:VCTargetsPath="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Microsoft\VC\v170" -v:minimal
+        Write-Host "IniParser x64 빌드 중..." -ForegroundColor Cyan
+        msbuild $iniparserSln -p:Configuration=$Configuration -p:Platform=x64 -p:WindowsTargetPlatformVersion=10.0.22621.0 -p:PlatformToolset=v143 -v:minimal
         $possiblePaths = @(
             "src/IniParser/bin/x64/$Configuration/iniparser.lib",
             "IniParser/bin/x64/$Configuration/iniparser.lib", 
