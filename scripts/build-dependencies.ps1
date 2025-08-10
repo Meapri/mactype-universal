@@ -315,7 +315,20 @@ if ($Platform -eq "x86") {
             if (Test-Path "Makefile") {
                 Write-Host "Makefile을 사용하여 wow64ext 빌드 시도..." -ForegroundColor Cyan
                 try {
-                    nmake
+                    # Visual Studio Developer Command Prompt 환경 설정
+                    $vsPath = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat"
+                    if (Test-Path $vsPath) {
+                        cmd /c "`"$vsPath`" && nmake"
+                    } else {
+                        # 대체 경로
+                        $vsPath2 = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat"
+                        if (Test-Path $vsPath2) {
+                            cmd /c "`"$vsPath2`" && nmake"
+                        } else {
+                            Write-Host "Visual Studio Developer Command Prompt를 찾을 수 없습니다. 직접 nmake 시도..." -ForegroundColor Yellow
+                            & "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\*\bin\Hostx64\x64\nmake.exe"
+                        }
+                    }
                     
                     # 생성된 .lib 파일 찾기
                     $possibleLibs = @(
@@ -510,7 +523,38 @@ try {
     if (Test-Path "src") {
         Write-Host "src 폴더에서 핵심 라이브러리만 빌드..." -ForegroundColor Cyan
         Set-Location "src"
-        nmake
+        
+        # Visual Studio Developer Command Prompt 환경에서 nmake 실행
+        $vsPath = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat"
+        if (Test-Path $vsPath) {
+            cmd /c "`"$vsPath`" && nmake"
+        } else {
+            # 대체 경로들 시도
+            $altPaths = @(
+                "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat",
+                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+            )
+            
+            $found = $false
+            foreach ($altPath in $altPaths) {
+                if (Test-Path $altPath) {
+                    cmd /c "`"$altPath`" && nmake"
+                    $found = $true
+                    break
+                }
+            }
+            
+            if (-not $found) {
+                Write-Host "Visual Studio 환경을 찾을 수 없어 간단한 방법으로 시도..." -ForegroundColor Yellow
+                # PATH에 nmake가 있는지 시도
+                try { 
+                    nmake 
+                } catch {
+                    Write-Host "nmake를 찾을 수 없습니다: $($_.Exception.Message)" -ForegroundColor Red
+                    throw
+                }
+            }
+        }
         Set-Location ".."
     } else {
         # Makefile 수정하여 샘플 제외
@@ -597,6 +641,37 @@ if ($sourceLib -and (Test-Path $sourceLib)) {
 }
 
 Set-Location $rootDir
+
+# MacType이 요구하는 특별한 라이브러리 이름들 생성
+Write-Host "MacType 호환성을 위한 라이브러리 이름 맞추기..." -ForegroundColor Cyan
+
+# easyhk64.lib 생성 (MacType이 EasyHook에 대해 요구하는 이름)
+$easyhookLib = Join-Path $libDir "easyhook64.lib"
+$macTypeEasyHookLib = Join-Path $libDir "easyhk64.lib"
+
+if (Test-Path $easyhookLib) {
+    Copy-Item $easyhookLib $macTypeEasyHookLib -Force
+    Write-Host "MacType용 EasyHook 라이브러리 생성: easyhk64.lib" -ForegroundColor Green
+} else {
+    # AUX_ULIB 라이브러리를 easyhk64.lib로 사용 시도
+    $auxLibs = Get-ChildItem $depsDir -Recurse -Filter "AUX_ULIB_*.LIB" -ErrorAction SilentlyContinue
+    if ($auxLibs) {
+        $auxLib64 = $auxLibs | Where-Object { $_.Name -like "*x64*" -or $_.Name -like "*64*" } | Select-Object -First 1
+        if ($auxLib64) {
+            Copy-Item $auxLib64.FullName $macTypeEasyHookLib -Force
+            Write-Host "AUX_ULIB을 MacType용 EasyHook으로 사용: $($auxLib64.Name) -> easyhk64.lib" -ForegroundColor Yellow
+        }
+    }
+}
+
+# Detours 라이브러리가 있다면 백업으로 easyhk64.lib 생성
+if (-not (Test-Path $macTypeEasyHookLib)) {
+    $detoursLib = Join-Path $libDir "detours64.lib"
+    if (Test-Path $detoursLib) {
+        Copy-Item $detoursLib $macTypeEasyHookLib -Force
+        Write-Host "Detours를 MacType용 후킹 라이브러리로 사용: detours64.lib -> easyhk64.lib" -ForegroundColor Yellow
+    }
+}
 
 Write-Host "=== 모든 종속성 빌드 완료 ===" -ForegroundColor Green
 
