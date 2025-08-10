@@ -23,7 +23,6 @@
       "version>=": "3.11.3"
     }
   ],
-  "builtin-baseline": "f7423ee180c4b7f40d43402c2feb3859161ef625",
   "overrides": [
     {
       "name": "freetype",
@@ -31,7 +30,7 @@
     },
     {
       "name": "detours",
-      "version": "4.0.1#1"
+      "version": "4.0.1#8"
     }
   ],
   "features": {
