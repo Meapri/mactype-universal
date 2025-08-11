@@ -96,25 +96,33 @@ jobs:
         .\vcpkg\vcpkg.exe install --triplet x64-windows
         echo "VCPKG_INSTALLED_DIR=$PWD\vcpkg\installed" >> $env:GITHUB_ENV
         echo "VCPKG_TARGET_TRIPLET=x64-windows" >> $env:GITHUB_ENV
+        .\vcpkg\vcpkg.exe list
+        if (Test-Path "$PWD\vcpkg\installed\x64-windows\lib\detours.lib") {
+          Write-Host "detours.lib 확인됨: $PWD\\vcpkg\\installed\\x64-windows\\lib\\detours.lib" -ForegroundColor Green
+        } else {
+          Write-Host "경고: detours.lib 미발견 (vcpkg installed lib)" -ForegroundColor Yellow
+        }
 
     - name: Build modern dependencies (vcpkg-based)
       run: |
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration Release
         echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+        if (Test-Path "$PWD\lib\detours.lib") { Write-Host "lib\\detours.lib 확인됨" -ForegroundColor Green } else { Write-Host "경고: lib\\detours.lib 없음" -ForegroundColor Yellow }
+        dir lib | findstr detours || echo "lib 폴더 내용 나열 완료"
 
     - name: Build MacType (Rel+Detours x64)
       run: |
         $msbuildPlatform = "x64"
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         echo "사용할 Windows SDK 버전: $sdkVersion"
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-RelDetours.log;verbosity=normal | cat
 
     - name: Build MacType (Release x64)
       run: |
         $msbuildPlatform = "x64"
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-Release.log;verbosity=normal | cat
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -125,4 +133,6 @@ jobs:
           Rel+Detours/**
           **/*.dll
           **/*.exe
+          msbuild-RelDetours.log
+          msbuild-Release.log
         retention-days: 30
