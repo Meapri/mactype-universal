@@ -111,6 +111,45 @@ jobs:
         if (Test-Path "$PWD\lib\detours.lib") { Write-Host "lib\\detours.lib 확인됨" -ForegroundColor Green } else { Write-Host "경고: lib\\detours.lib 없음" -ForegroundColor Yellow }
         dir lib | findstr detours || echo "lib 폴더 내용 나열 완료"
 
+    - name: Build IniParser (x64) and copy lib
+      run: |
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+        $inipDir = Join-Path $PWD "deps/iniparser"
+        if (!(Test-Path $inipDir)) {
+          git clone https://github.com/snowie2000/IniParser.git $inipDir
+        }
+        $sln = $null
+        $cands = @("IniParser.sln","src/IniParser.sln","IniParser/IniParser.sln")
+        foreach ($c in $cands) {
+          $p = Join-Path $inipDir $c
+          if (Test-Path $p) { $sln = $p; break }
+        }
+        if (-not $sln) {
+          $proj = Get-ChildItem -Path $inipDir -Recurse -Filter *.vcxproj -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($proj) { $sln = $proj.FullName } else { throw "IniParser 솔루션/프로젝트를 찾을 수 없습니다" }
+        }
+        $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
+        msbuild $sln -p:Configuration=Release -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal | cat
+        $outs = @(
+          "src/IniParser/bin/x64/Release/iniparser.lib",
+          "IniParser/bin/x64/Release/iniparser.lib",
+          "bin/x64/Release/iniparser.lib",
+          "src/IniParser/bin/Release/iniparser.lib",
+          "IniParser/bin/Release/iniparser.lib",
+          "bin/Release/iniparser.lib"
+        )
+        $found = $false
+        foreach ($o in $outs) {
+          $full = Join-Path $inipDir $o
+          if (Test-Path $full) {
+            Copy-Item $full (Join-Path $PWD "lib/iniparser64.lib") -Force
+            Write-Host "iniparser64.lib 생성: $full -> lib/iniparser64.lib" -ForegroundColor Green
+            $found = $true
+            break
+          }
+        }
+        if (-not $found) { Write-Host "경고: iniparser64.lib 산출물을 찾지 못했습니다" -ForegroundColor Yellow }
+
     - name: Build MacType (Rel+Detours x64)
       run: |
         $msbuildPlatform = "x64"
