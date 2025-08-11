@@ -1,5 +1,7 @@
 #pragma once
 
+#include <windows.h>
+#include <tchar.h>
 #include <mmsystem.h>	//mmioFOURCC
 #define FOURCC_GDIPP	mmioFOURCC('G', 'D', 'I', 'P')
 
