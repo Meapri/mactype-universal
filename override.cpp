@@ -691,7 +691,7 @@ HFONT WINAPI IMPL_CreateFontIndirectExW(CONST ENUMLOGFONTEXDV *penumlfex)
 	if (!penumlfex) return NULL;
 	TRACE(L"Creating font \"%s\"\n", penumlfex->elfEnumLogfontEx.elfLogFont.lfFaceName);
 	{
-		if (penumlfex->elfEnumLogfontEx.elfLogFont.lfClipPrecision == FONT_MAGIC_NUMBER)
+		if (penumlfex->elfEnumLogfontEx.elfLogFont.lfClipPrecision == mactype::FONT_MAGIC_NUMBER)
 		{		
 			TRACE(L"Engine font, Ignored, ");
 			((ENUMLOGFONTEXDV *)penumlfex)->elfEnumLogfontEx.elfLogFont.lfClipPrecision = 0;

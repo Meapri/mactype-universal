@@ -1755,7 +1755,7 @@ CFontSubstitutesInfo::lookup(LOGFONT& lf) const
 			GetMacTypeInternalFontName(&mylf, inName);
 			if (!(buff = FontNameCache.Find(inName)))
 			{
-				mylf.lfClipPrecision = FONT_MAGIC_NUMBER;
+				mylf.lfClipPrecision = mactype::FONT_MAGIC_NUMBER;
 				HFONT tempfont = CreateFontIndirect(&mylf);
 				HDC dc = CreateCompatibleDC(NULL);
 				HFONT oldfont = SelectFont(dc, tempfont);
