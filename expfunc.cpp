@@ -80,6 +80,9 @@ EXTERN_C HRESULT WINAPI GdippDllGetVersion(DLLVERSIONINFO* pdvi)
 
 #endif	//!_GDIPP_EXE
 
+// HOOK 시스템을 위해 필요한 헤더들 (_GDIPP_EXE가 정의된 경우에도 필요)
+#include "override.h"
+
 extern volatile long interlock;
 extern volatile long g_bHookEnabled;
 #include "gdiPlusFlat2.h"
