@@ -787,7 +787,7 @@
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <SupportUnloadOfDelayLoadedDLL>true</SupportUnloadOfDelayLoadedDLL>
       <TargetMachine>MachineX64</TargetMachine>
-      <DelayLoadDLLs>easyhk64.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>easyhook64.dll</DelayLoadDLLs>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <CETCompat>true</CETCompat>
     </Link>
@@ -904,7 +904,7 @@
       <RandomizedBaseAddress>true</RandomizedBaseAddress>
       <SupportUnloadOfDelayLoadedDLL>true</SupportUnloadOfDelayLoadedDLL>
       <TargetMachine>MachineX64</TargetMachine>
-      <DelayLoadDLLs>easyhk64.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>easyhook64.dll</DelayLoadDLLs>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <CETCompat>true</CETCompat>
     </Link>
