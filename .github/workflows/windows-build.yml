@@ -26,10 +26,10 @@ jobs:
         run: |
           C:\vcpkg\vcpkg.exe install --triplet x64-windows
 
-      - name: Build (Rel+Detours x64)
+      - name: Build (Rel+Detours x64, sequential)
         shell: pwsh
         run: |
-          msbuild gdipp.sln /m /p:Configuration="Rel+Detours" /p:Platform="x64" /p:VcpkgEnableManifest=true /p:VcpkgRoot=C:\vcpkg /p:VcpkgTriplet=x64-windows | cat
+          msbuild gdipp.sln /p:Configuration="Rel+Detours" /p:Platform="x64" /p:BuildInParallel=false /p:VcpkgEnableManifest=true /p:VcpkgRoot=C:\vcpkg /p:VcpkgTriplet=x64-windows | cat
 
       - name: Upload detours.lib artifact (x64)
         if: always()
