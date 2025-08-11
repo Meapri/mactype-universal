@@ -1,16 +1,8 @@
 name: Build MacType
 
 on:
-  # PR 시에만 자동 실행 (중복 방지를 위해 push 트리거 제거)
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [ "main", "directwrite", "develop" ]
-  # 필요 시 수동 실행
+  # 필요 시 수동 실행 전용 (자동 트리거 해제해 중복 실행 방지)
   workflow_dispatch:
-
-concurrency:
-  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   # Build configuration
