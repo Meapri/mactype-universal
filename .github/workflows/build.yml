@@ -129,7 +129,7 @@ jobs:
           if ($proj) { $sln = $proj.FullName } else { throw "IniParser 솔루션/프로젝트를 찾을 수 없습니다" }
         }
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
-        msbuild $sln -p:Configuration=Release -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal | cat
+        msbuild $sln -p:Configuration=Release -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
         $outs = @(
           "src/IniParser/bin/x64/Release/iniparser.lib",
           "IniParser/bin/x64/Release/iniparser.lib",
@@ -155,13 +155,13 @@ jobs:
         $msbuildPlatform = "x64"
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         echo "사용할 Windows SDK 버전: $sdkVersion"
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-RelDetours.log;verbosity=normal | cat
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-RelDetours.log;verbosity=normal
 
     - name: Build MacType (Release x64)
       run: |
         $msbuildPlatform = "x64"
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-Release.log;verbosity=normal | cat
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-Release.log;verbosity=normal
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
