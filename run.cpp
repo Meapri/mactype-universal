@@ -330,8 +330,30 @@ static HRESULT HookAndExecute(int show)
 
 int WINAPI wWinMain(HINSTANCE ins, HINSTANCE prev, LPWSTR cmd, int show)
 {
-	_CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_LEAK_CHECK_DF);
-	OleInitialize(NULL);
+    _CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_LEAK_CHECK_DF);
+    OleInitialize(NULL);
+
+    // Optional: IFEO register/unregister minimal handler (admin required)
+    if (cmd) {
+        if (wcsstr(cmd, L"/register") != nullptr) {
+            HKEY hKey;
+            if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+                L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe",
+                0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &hKey, nullptr) == ERROR_SUCCESS) {
+                wchar_t marker[] = L"MacType";
+                RegSetValueExW(hKey, L"VerifierDlls", 0, REG_SZ, (const BYTE*)marker, sizeof(marker));
+                RegCloseKey(hKey);
+            }
+            OleUninitialize();
+            return 0;
+        }
+        if (wcsstr(cmd, L"/unregister") != nullptr) {
+            RegDeleteTreeW(HKEY_LOCAL_MACHINE,
+                L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options\\notepad.exe");
+            OleUninitialize();
+            return 0;
+        }
+    }
 
 	WCHAR path[MAX_PATH];
 	if (GetModuleFileNameW(NULL, path, _countof(path))) {
@@ -355,7 +377,7 @@ int WINAPI wWinMain(HINSTANCE ins, HINSTANCE prev, LPWSTR cmd, int show)
 		}
 	}
 
-	OleUninitialize();
+    OleUninitialize();
 	return 0;
 }
 

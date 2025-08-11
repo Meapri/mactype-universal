@@ -195,3 +195,16 @@ jobs:
           **/*.exe
           msbuild-RelDetours.log
         retention-days: 30
+
+    - name: Install Inno Setup
+      run: choco install innosetup --no-progress -y
+
+    - name: Build installer
+      run: iscc .\installer\mactype.iss
+
+    - name: Upload installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: mactype-installer
+        path: Output\MacType-Setup-x64.exe
+        retention-days: 30
