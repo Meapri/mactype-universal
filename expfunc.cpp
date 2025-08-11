@@ -13,7 +13,6 @@
 #include <locale>
 #include "wow64ext.h"
 #include <VersionHelpers.h>
-#include "crc32.h"
 
 // win2k以降
 //#pragma comment(linker, "/subsystem:windows,5.0")
@@ -82,6 +81,7 @@ EXTERN_C HRESULT WINAPI GdippDllGetVersion(DLLVERSIONINFO* pdvi)
 
 // HOOK 시스템을 위해 필요한 헤더들 (_GDIPP_EXE가 정의된 경우에도 필요)
 #include "override.h"
+#include "crc32.h"
 
 extern volatile long interlock;
 extern volatile long g_bHookEnabled;
@@ -203,7 +203,8 @@ std::string WstringToString(const std::wstring str)
 // make a unique name with fullname + crc32_of_fullname + familyname +stylename
 std::wstring MakeUniqueFontName(const std::wstring strFullName, const std::wstring strFamilyName, const std::wstring strStyleName)
 {
-	return strFullName + std::to_wstring(static_cast<unsigned int>(crc32::getCrc32(0, strFullName.c_str(), strFullName.length() * sizeof(WCHAR)))) + strFamilyName + strStyleName;
+	unsigned int crc32Value = static_cast<unsigned int>(crc32::getCrc32(0, strFullName.c_str(), strFullName.length() * sizeof(WCHAR)));
+	return strFullName + std::to_wstring(crc32Value) + strFamilyName + strStyleName;
 }
 
 #ifndef Assert
@@ -1266,6 +1267,7 @@ int GetSystemBits()
 
 static bool bIsOS64 = GetSystemBits() == 64;	// check if running in a x64 system.
 
+#if 0
 #ifdef _M_IX86
 // 止めているプロセスにLoadLibraryするコードを注入
 EXTERN_C BOOL WINAPI GdippInjectDLL(const PROCESS_INFORMATION* ppi)
@@ -1391,6 +1393,7 @@ EXTERN_C BOOL WINAPI GdippInjectDLL(const PROCESS_INFORMATION* ppi)
 }
 
 #endif
+#endif // #if 0
 
 template <typename _TCHAR>
 int strlendb(const _TCHAR* psz)
