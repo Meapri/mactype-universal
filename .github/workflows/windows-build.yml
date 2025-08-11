@@ -1,0 +1,47 @@
+name: Windows Build (Rel+Detours)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, Win32]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install detours via vcpkg (x64/x86)
+        shell: pwsh
+        run: |
+          C:\vcpkg\vcpkg.exe install detours:x64-windows detours:x86-windows
+
+      - name: Build (Rel+Detours)
+        shell: pwsh
+        run: |
+          msbuild gdipp.sln /m /p:Configuration="Rel+Detours" /p:Platform="${{ matrix.platform }}" /p:VcpkgEnableManifest=true /p:VcpkgRoot=C:\vcpkg | cat
+
+      - name: Upload detours.lib artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detours-${{ matrix.platform }}
+          path: |
+            C:\vcpkg\installed\x64-windows\lib\detours.lib
+            C:\vcpkg\installed\x86-windows\lib\detours.lib
+
+
