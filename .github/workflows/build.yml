@@ -1,12 +1,12 @@
 name: Build MacType
 
 on:
-  # 메인 브랜치에 대한 직접 푸시만 빌드
+  # main, directwrite, develop 브랜치 푸시 시 빌드
   push:
-    branches: [ "main" ]
-  # 기능 브랜치는 PR에서만 검증 -> 중복 빌드 방지
-  pull_request:
     branches: [ "main", "directwrite", "develop" ]
+  # PR 검증은 main 대상에서만 수행하여 중복 방지
+  pull_request:
+    branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
