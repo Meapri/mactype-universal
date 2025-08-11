@@ -1,3 +1,5 @@
+#include <windows.h>
+#include <tchar.h>
 #include "settings.h"
 #include "strtoken.h"
 #include <math.h>	//pow
