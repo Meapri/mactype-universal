@@ -954,6 +954,7 @@
     <ClCompile Include="dynCodeHelper.cpp" />
     <ClCompile Include="EventLogging.cpp" />
     <ClCompile Include="expfunc.cpp" />
+    <ClCompile Include="ft_compat_ex.c" />
     <ClCompile Include="ft.cpp" />
     <ClCompile Include="ft2vert.c" />
     <ClCompile Include="fteng.cpp" />
