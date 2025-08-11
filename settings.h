@@ -9,6 +9,12 @@
 #include <vector>
 #include <fstream>
 #include "json.hpp"
+#pragma once
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_LCD_FILTER_H
+
 
 using json = nlohmann::json;
 
@@ -680,7 +686,6 @@ public:
 };
 #include "fteng.h"
 #include "ft.h"
-#include <freetype/ftlcdfil.h>
 #include "strtoken.h"
 extern FreeTypeFontEngine* g_pFTEngine;
 extern BOOL g_ccbCache;

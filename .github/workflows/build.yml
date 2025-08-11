@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 90
 
     strategy:
+      fail-fast: false
       matrix:
         platform: [x86, x64]
         # ARM64는 일단 제외하고 x86, x64를 먼저 테스트
