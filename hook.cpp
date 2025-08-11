@@ -261,7 +261,7 @@ static LONG hook_term()
 
 CTlsData<CThreadLocalInfo>	g_TLInfo;
 HINSTANCE					g_hinstDLL;
-LONG						g_bHookEnabled;
+volatile LONG				g_bHookEnabled;
 #ifdef _DEBUG
 HANDLE						g_hfDbgText;
 #endif
