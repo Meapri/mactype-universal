@@ -1809,6 +1809,10 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 	// 원본 포인터들 저장 (두 번째 루프를 위해)
 	FT_Referenced_Glyph* GlyphArrayOrg = GlyphArray;
 	FT_DRAW_STATE* drStateOrg = drState;
+	
+	// Dx, Dy 포인터들도 함수 시작에 선언 (goto문 충돌 방지)
+	int* Dx = FTInfo.Dx;
+	int* Dy = FTInfo.Dy;
 
 
 	//Snowie!!
@@ -1856,7 +1860,7 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 			}
 			else
 			{
-				int gdi32x = 0;
+				gdi32x = 0;
 				GetCharWidth32W(FTInfo.hdc, wch, wch, &gdi32x);
 				FTInfo.y -= clpdx.gety(0);
 				FTInfo.x += clpdx.get(gdi32x);
@@ -2392,8 +2396,6 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 			goto gdiexit;
 		}
 	//!!Snowie
-	int* Dx = FTInfo.Dx;
-	int* Dy = FTInfo.Dy;
 	if (!bAllowDefaultLink && FTInfo.face_id_list_num > 1)
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
