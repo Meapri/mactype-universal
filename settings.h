@@ -5,8 +5,6 @@
 #include "cache.h"
 #include "hash_list.h"
 #include <VersionHelpers.h>
-#include <freetype/ftmodapi.h>
-#include <iniparser.h>
 #include <string>
 #include <vector>
 #include <fstream>
