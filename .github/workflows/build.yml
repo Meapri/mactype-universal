@@ -1,11 +1,17 @@
 name: Build MacType
 
 on:
-  # 필요 시 수동 실행 전용 (자동 트리거 해제해 중복 실행 방지)
+  push:
+    branches: [ "main", "directwrite", "develop" ]
+  pull_request:
+    branches: [ "main", "directwrite" ]
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
-  # Build configuration
   BUILD_CONFIGURATION: Release
   SOLUTION_FILE_PATH: ./gdipp.sln
 
@@ -18,7 +24,6 @@ jobs:
       fail-fast: false
       matrix:
         platform: [x64]
-        # ARM64는 일단 제외하고 x86, x64를 먼저 테스트
 
     steps:
     - name: Checkout code
@@ -29,50 +34,25 @@ jobs:
 
     - name: Add Windows SDK to PATH and set compatible SDK version
       run: |
-        # 사용 가능한 Windows SDK 버전들 확인
         echo "=== 설치된 Windows SDK 버전들 ==="
         $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name
         $sdkVersions | ForEach-Object { echo "  - $($_.Name)" }
-        
-        # SDK 호환성 문제 해결됨: 최신 SDK 우선 사용 (성능 및 기능 개선)
         $preferredVersions = @("10.0.26100.0", "10.0.22621.0", "10.0.22000.0", "10.0.20348.0", "10.0.19041.0")
         $selectedSdk = $null
-        
         foreach ($version in $preferredVersions) {
           $sdkIncludePath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$version"
-          if (Test-Path $sdkIncludePath) {
-            $selectedSdk = $version
-            echo "선택된 Windows SDK: $version"
-            break
-          }
+          if (Test-Path $sdkIncludePath) { $selectedSdk = $version; echo "선택된 Windows SDK: $version"; break }
         }
-        
-        # 찾지 못했으면 가장 최신 사용 가능한 버전 사용 (호환성 문제 해결됨)
         if (-not $selectedSdk -and $sdkVersions) {
-          # 버전 번호 기준으로 정렬하여 가장 최신 것 선택
           $newestSdk = $sdkVersions | Where-Object { $_.Name -match "^\d+\.\d+\.\d+\.\d+$" } | Sort-Object Name -Descending | Select-Object -First 1
-          if ($newestSdk) {
-            $selectedSdk = $newestSdk.Name
-            echo "최신 Windows SDK 사용 (호환성 해결됨): $selectedSdk"
-          } else {
-            $selectedSdk = $sdkVersions[0].Name
-            echo "기본 Windows SDK 사용: $selectedSdk"
-          }
+          if ($newestSdk) { $selectedSdk = $newestSdk.Name; echo "최신 Windows SDK 사용: $selectedSdk" } else { $selectedSdk = $sdkVersions[0].Name; echo "기본 Windows SDK 사용: $selectedSdk" }
         }
-        
         if ($selectedSdk) {
-          # 환경 변수로 SDK 버전 강제 설정
           echo "WindowsSDKVersion=$selectedSdk" >> $env:GITHUB_ENV
           echo "WINDOWS_SDK_VERSION=$selectedSdk" >> $env:GITHUB_ENV
-          
-          # SDK 경로를 PATH에 추가
           $sdkBinPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64"
-          if (Test-Path $sdkBinPath) {
-            echo "$sdkBinPath" >> $env:GITHUB_PATH
-          }
+          if (Test-Path $sdkBinPath) { echo "$sdkBinPath" >> $env:GITHUB_PATH }
         }
-        
-        # Visual Studio 경로 확인
         echo "=== Visual Studio 설치 확인 ==="
         Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
         Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
@@ -97,57 +77,38 @@ jobs:
       with:
         path: |
           vcpkg
-          deps/vcpkg_installed
+          vcpkg/installed
         key: vcpkg-${{ matrix.platform }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
         restore-keys: |
           vcpkg-${{ matrix.platform }}-
           vcpkg-
 
-    - name: Setup vcpkg manually
+    - name: Setup vcpkg
       run: |
-        # vcpkg 수동 설치 (안정적인 방법, 캐시 고려)
-        if (!(Test-Path "vcpkg")) {
-          git clone https://github.com/Microsoft/vcpkg.git vcpkg
-        }
+        if (!(Test-Path "vcpkg")) { git clone https://github.com/Microsoft/vcpkg.git vcpkg }
         cd vcpkg
-        if (!(Test-Path "vcpkg.exe")) {
-          .\bootstrap-vcpkg.bat
-        }
+        if (!(Test-Path "vcpkg.exe")) { .\bootstrap-vcpkg.bat }
         echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
         echo "$PWD" >> $env:GITHUB_PATH
         cd ..
-        
-    - name: Build modern dependencies (vcpkg-based)  
+
+    - name: Install detours and deps via vcpkg (manifest, x64)
       run: |
-        # 빌드 스크립트 실행 권한 설정
+        .\vcpkg\vcpkg.exe install --triplet x64-windows
+        echo "VCPKG_INSTALLED_DIR=$PWD\vcpkg\installed" >> $env:GITHUB_ENV
+        echo "VCPKG_TARGET_TRIPLET=x64-windows" >> $env:GITHUB_ENV
+
+    - name: Build modern dependencies (vcpkg-based)
+      run: |
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-        
-        # 현대적 vcpkg 기반 종속성 빌드
         .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }}
-        
-        # vcpkg 통합 환경 변수 설정
-        echo "VCPKG_INSTALLED_DIR=$PWD/deps/vcpkg_installed" >> $env:GITHUB_ENV
         echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
 
     - name: Build MacType
       run: |
-        # Set platform for MSBuild
-        $msbuildPlatform = switch ("${{ matrix.platform }}") {
-          "x86" { "Win32" }
-          "x64" { "x64" }
-          "ARM64" { "ARM64" }
-          default { "x64" }
-        }
-        
-        # 호환 가능한 Windows SDK 버전으로 빌드
-        $sdkVersion = $env:WINDOWS_SDK_VERSION
-        if (-not $sdkVersion) {
-          $sdkVersion = "10.0.26100.0"  # 최신 SDK 사용 (호환성 문제 해결됨)
-        }
-        
+        $msbuildPlatform = switch ("${{ matrix.platform }}") { "x86" { "Win32" } "x64" { "x64" } "ARM64" { "ARM64" } default { "x64" } }
+        $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         echo "사용할 Windows SDK 버전: $sdkVersion"
-        
-        # Build the solution with specific SDK version
         msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true
 
     - name: Upload build artifacts
@@ -169,3 +130,53 @@ jobs:
           ${{ env.BUILD_CONFIGURATION }}/
           **/*.dll
           **/*.exe
+name: Windows Build (Rel+Detours x64)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: ["main", "directwrite"]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Install dependencies via vcpkg (manifest, x64)
+        shell: pwsh
+        run: |
+          C:\vcpkg\vcpkg.exe install --triplet x64-windows
+
+      - name: Build (Rel+Detours x64, sequential)
+        shell: pwsh
+        run: |
+          msbuild gdipp.sln /p:Configuration="Rel+Detours" /p:Platform="x64" /p:BuildInParallel=false /p:VcpkgEnableManifest=true /p:VcpkgRoot=C:\vcpkg /p:VcpkgTriplet=x64-windows | cat
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mactype-x64-RelDetours
+          path: |
+            x64/Rel+Detours/**
+            Rel+Detours/**
+            **/*.dll
+            **/*.exe
+          retention-days: 14
