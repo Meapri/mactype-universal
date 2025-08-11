@@ -2326,6 +2326,16 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 	if (!s_GGOGlyphLoader.init(freetype_library)) {
 		return FALSE;
 	}
+
+	// Variables needed for the loop (matching ForEachGetGlyphFT declarations)
+	FT_Referenced_Glyph* glyph_bitmap = NULL;
+	int gdi32x = 0, gdi32x2 = 0;
+	FreeTypeCharData* chData = NULL;
+	FT_UInt glyph_index = 0;
+	BOOL bIsBold = false, bIsIndivBold = false;
+	int cx = 0, cx2 = 0;
+	FT_Referenced_Glyph* glyph_bitmap2 = NULL;
+
 	// 	LPCTSTR dumy = lpString;
 	// 	if (!bGlyphIndex)
 	// 	 for (; dumy<lpEnd;dumy++)
@@ -2336,6 +2346,15 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 
 	WORD* gi = new WORD[cbString];
 	WORD* ggi = gi;
+	
+	// Store original pointers for loop reset
+	FT_Referenced_Glyph* GlyphArrayOrg = GlyphArray;
+	FT_DRAW_STATE* drStateOrg = drState;
+	
+	// Dx, Dy pointers declaration
+	int* Dx = FTInfo.Dx;
+	int* Dy = FTInfo.Dy;
+	
 	//int* gdi32w = new int[cbString];
 	//int* ggdi32 = gdi32w;
 	//SIZE* szSize =new SIZE[cbString];
