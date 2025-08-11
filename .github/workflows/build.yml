@@ -90,51 +90,85 @@ jobs:
         path: |
           lib/
           deps/
-        key: ${{ runner.os }}-deps-${{ hashFiles('**/HOWTOBUILD.md') }}
+        key: ${{ runner.os }}-deps-manual-${{ hashFiles('doc/glyph_to_bitmapex.diff') }}
         restore-keys: |
-          ${{ runner.os }}-deps-
+          ${{ runner.os }}-deps-manual-
 
     - name: Create directories
       run: |
         New-Item -ItemType Directory -Force -Path lib
         New-Item -ItemType Directory -Force -Path deps
 
-    - name: Cache vcpkg
-      uses: actions/cache@v4
-      with:
-        path: |
-          vcpkg
-          deps/vcpkg_installed
-        key: vcpkg-${{ matrix.platform }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-        restore-keys: |
-          vcpkg-${{ matrix.platform }}-
-          vcpkg-
-
-    - name: Setup vcpkg manually
+    - name: Build dependencies (manual, patched freetype)
+      shell: pwsh
       run: |
-        # vcpkg 수동 설치 (안정적인 방법, 캐시 고려)
-        if (!(Test-Path "vcpkg")) {
-          git clone https://github.com/Microsoft/vcpkg.git vcpkg
-        }
-        cd vcpkg
-        if (!(Test-Path "vcpkg.exe")) {
-          .\bootstrap-vcpkg.bat
-        }
-        echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
-        echo "$PWD" >> $env:GITHUB_PATH
-        cd ..
-        
-    - name: Build modern dependencies (vcpkg-based)  
-      run: |
-        # 빌드 스크립트 실행 권한 설정
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-        
-        # 현대적 vcpkg 기반 종속성 빌드
-        .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration ${{ env.BUILD_CONFIGURATION }}
-        
-        # vcpkg 통합 환경 변수 설정
-        echo "VCPKG_INSTALLED_DIR=$PWD/deps/vcpkg_installed" >> $env:GITHUB_ENV
-        echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+        New-Item -ItemType Directory -Force -Path lib | Out-Null
+        New-Item -ItemType Directory -Force -Path deps | Out-Null
+
+        $cfg = "${{ env.BUILD_CONFIGURATION }}"
+        $platform = "${{ matrix.platform }}"
+        $msbuildPlatform = if ($platform -eq "x64") { "x64" } else { "Win32" }
+
+        # 1) FreeType (custom fork + patch)
+        if (!(Test-Path "deps/freetype-$platform")) {
+          git clone https://github.com/snowie2000/freetype.git "deps/freetype-$platform"
+        }
+        cd "deps/freetype-$platform"
+        git reset --hard HEAD
+        git clean -xfd
+        git apply --whitespace=nowarn ../../doc/glyph_to_bitmapex.diff
+        msbuild builds/windows/vc2010/freetype.sln -p:Configuration=$cfg -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=${{ env.WINDOWS_SDK_VERSION }} -p:PlatformToolset=v143 -v:minimal
+        if ($platform -eq "x64") {
+          Copy-Item "objs/x64/$cfg/freetype.lib" "../../lib/freetype64.lib" -Force
+        } else {
+          Copy-Item "objs/Win32/$cfg/freetype.lib" "../../lib/freetype.lib" -Force
+        }
+        cd ../..
+        # FREETYPE_PATH -> repo 루트 (include 폴더 존재)
+        echo "FREETYPE_PATH=$PWD/deps/freetype-$platform" >> $env:GITHUB_ENV
+
+        # 2) IniParser (native lib)
+        if (!(Test-Path "deps/iniparser")) {
+          git clone https://github.com/snowie2000/IniParser.git deps/iniparser
+        }
+        cd deps/iniparser
+        msbuild src/IniParser.sln -p:Configuration=$cfg -p:Platform=$msbuildPlatform -v:minimal
+        if ($platform -eq "x64") {
+          Copy-Item "src/IniParser/bin/x64/$cfg/iniparser.lib" "../../lib/iniparser64.lib" -Force
+        } else {
+          Copy-Item "src/IniParser/bin/x86/$cfg/iniparser.lib" "../../lib/iniparser.lib" -Force
+        }
+        cd ../..
+
+        # 헤더: ndevilla/iniparser에서 iniparser.h/dictionary.h 확보
+        if (!(Test-Path "deps/iniparser-headers")) {
+          git clone https://github.com/ndevilla/iniparser.git deps/iniparser-headers
+        }
+        New-Item -ItemType Directory -Force -Path deps/include | Out-Null
+        Copy-Item "deps/iniparser-headers/iniparser.h" "deps/include/" -Force
+        Copy-Item "deps/iniparser-headers/dictionary.h" "deps/include/" -Force
+        echo "INI_PARSER_PATH=$PWD/deps/include" >> $env:GITHUB_ENV
+
+        # 3) Detours
+        if (!(Test-Path "deps/detours")) {
+          git clone https://github.com/microsoft/Detours.git deps/detours
+          cd deps/detours
+          nmake
+          cd ../..
+        }
+        if (Test-Path "deps/detours/lib.X64/detours.lib") {
+          Copy-Item "deps/detours/lib.X64/detours.lib" "lib/detours64.lib" -Force
+        }
+
+    - name: Diagnostic: show env and deps
+      shell: pwsh
+      run: |
+        echo "FREETYPE_PATH=$env:FREETYPE_PATH"
+        echo "INI_PARSER_PATH=$env:INI_PARSER_PATH"
+        echo "Lib contents:"
+        Get-ChildItem lib -Recurse | Select-Object FullName,Length
+        echo "Deps include:"; Get-ChildItem deps/include -ErrorAction SilentlyContinue
 
     - name: Build MacType
       run: |
@@ -154,8 +188,8 @@ jobs:
         
         echo "사용할 Windows SDK 버전: $sdkVersion"
         
-        # Build the solution with specific SDK version
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true
+  # Build the solution with specific SDK version
+  msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=${{ env.BUILD_CONFIGURATION }} -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true -v:minimal
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
