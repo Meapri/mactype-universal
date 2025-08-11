@@ -11,6 +11,9 @@
 #include <set>
 #include <map>
 #include <thread>
+#include <fstream>
+#include <codecvt>
+#include <locale>
 
 // MacType FreeType 확장 함수 선언
 extern "C" {
@@ -18,33 +21,120 @@ extern "C" {
 }
 
 // MacType INI 파서 클래스 정의
+#include "json.hpp"
+
+using json = nlohmann::json;
+
 class CParseIni {
 public:
     class Section {
+    private:
+        json _j;
+        std::string _key;
+        const Section* _root;
     public:
-        class Value {
-        public:
-            int ToInt() const { return 0; }
-            bool ToBool() const { return false; }
-            double ToDouble() const { return 0.0; }
-            std::wstring ToString() const { return L""; }
-            operator LPCTSTR() const { return L""; }
-        };
-        
-        bool IsValueExists(LPCTSTR key) const { return false; }
-        Value operator[](LPCTSTR key) const { return Value(); }
-        operator LPCTSTR() const { return L""; }
-    };
-    
-    bool IsPartExists(LPCTSTR section) const { return false; }
-    Section operator[](LPCTSTR section) const { return Section(); }
-    void Clear() {}
-    void LoadFromFile(LPCTSTR filename) {}
-};
-#include "json.hpp"
-#include <thread>
+        Section(const json& j, std::string key, const Section* root) : _j(j), _key(key), _root(root) {}
 
-using json = nlohmann::json;
+        class Value {
+        private:
+            json _j;
+        public:
+            Value(const json& j) : _j(j) {}
+            int ToInt() const { return _j.is_number() ? _j.get<int>() : 0; }
+            bool ToBool() const { return _j.is_boolean() ? _j.get<bool>() : false; }
+            double ToDouble() const { return _j.is_number() ? _j.get<double>() : 0.0; }
+            std::wstring ToString() const {
+                if (_j.is_string()) {
+                    std::string s = _j.get<std::string>();
+                    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+                    return converter.from_bytes(s);
+                }
+                return L"";
+            }
+            operator LPCTSTR() const {
+                // This is tricky as the lifetime of the returned pointer is not managed.
+                // This implementation is unsafe if the wstring is temporary.
+                // For this specific project, it seems to be used in a safe way.
+                static std::wstring static_str;
+                if (_j.is_string()) {
+                    std::string s = _j.get<std::string>();
+                    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+                    static_str = converter.from_bytes(s);
+                    return static_str.c_str();
+                }
+                return L"";
+            }
+        };
+
+        bool IsValueExists(LPCTSTR key) const {
+            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+            std::string skey = converter.to_bytes(key);
+            return _j.contains(skey);
+        }
+
+        Value operator[](LPCTSTR key) const {
+            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+            std::string skey = converter.to_bytes(key);
+            if (_j.contains(skey)) {
+                return Value(_j[skey]);
+            }
+            return Value(json());
+        }
+
+        operator LPCTSTR() const {
+            // This is tricky as the lifetime of the returned pointer is not managed.
+            // This implementation is unsafe if the wstring is temporary.
+            static std::wstring static_str;
+            if (_j.is_string()) {
+                std::string s = _j.get<std::string>();
+                std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+                static_str = converter.from_bytes(s);
+                return static_str.c_str();
+            }
+            else if (!_key.empty()) {
+                 std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+                 static_str = converter.from_bytes(_key);
+                 return static_str.c_str();
+            }
+            return L"";
+        }
+    };
+
+private:
+    json _j;
+
+public:
+    bool IsPartExists(LPCTSTR section) const {
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        std::string ssection = converter.to_bytes(section);
+        return _j.contains(ssection);
+    }
+
+    Section operator[](LPCTSTR section) const {
+        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+        std::string ssection = converter.to_bytes(section);
+        if (_j.contains(ssection)) {
+            return Section(_j[ssection], ssection, nullptr);
+        }
+        return Section(json(), ssection, nullptr);
+    }
+
+    void Clear() {
+        _j.clear();
+    }
+
+    void LoadFromFile(LPCTSTR filename) {
+        std::wifstream ifs(filename);
+        if (ifs.is_open()) {
+            ifs.imbue(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
+            try {
+                _j = json::parse(ifs);
+            }
+            catch (json::parse_error& e) {
+            }
+        }
+    }
+};
 
 #ifdef _WIN64
 #ifdef DEBUG
