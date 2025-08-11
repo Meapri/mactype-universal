@@ -152,12 +152,12 @@ BOOL _CreateProcessAsUserAorW(HANDLE hToken, const _TCHAR* lpApp, _TCHAR* lpCmd,
 	return TRUE;
 }
 
-static wstring GetExeName(LPCTSTR lpApp, LPTSTR lpCmd)
+static std::wstring GetExeName(LPCTSTR lpApp, LPTSTR lpCmd)
 {
 // 	HANDLE logfile = CreateFile(_T("C:\\mt.log"), FILE_ALL_ACCESS, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, NULL, NULL);
 // 	SetFilePointer(logfile,0,NULL, FILE_END);
 
-	wstring ret;
+	std::wstring ret;
 // 	DWORD aa=0;
 // 	if (GetFileSize(logfile, NULL)==0)
 // 		WriteFile(logfile, "\xff\xfe", 2, &aa, NULL);
@@ -198,45 +198,36 @@ static wstring GetExeName(LPCTSTR lpApp, LPTSTR lpCmd)
 						ret.erase(0, p+1);	//如果有路径就删掉路径
 // 					WriteFile(logfile, ret.c_str(), ret.length()*2, &aa, NULL);
 // 					WriteFile(logfile, _T("\n"), 2, &aa, NULL);
-// 					WriteFile(logfile, _T("==========\n"), 24, &aa, NULL);
-// 					CloseHandle(logfile);
+// 				WriteFile(logfile, _T("==========\n"), 24, &aa, NULL);
+// 				CloseHandle(logfile);
 					return ret;
 				}
 			}
 		} while (vlpApp);
 	}
-
+	
 	if (lpCmd)
 	{
-// 		WriteFile(logfile, L"lpCmd=", 10, &aa, NULL);
+// 		WriteFile(logfile, L"lpCmd=", 12, &aa, NULL);
 // 		WriteFile(logfile, lpCmd, _tcslen(lpCmd)*2, &aa, NULL);
-		ret.assign(lpCmd);
-		int p=0;
-		if ((*lpCmd)==_T('\"'))
-		{
-			ret.erase(0,1);	//删除第一个引号
-			p=ret.find_first_of(_T("\""));	//查找下一个引号
-		}
-		else
-			p=ret.find_first_of(_T(" "));
-		if (p>0)
-			ret.resize(p);	//获得Cmd里面的文件名
-// 		WriteFile(logfile, ret.c_str(), ret.length()*2, &aa, NULL);
 // 		WriteFile(logfile, _T("\n"), 2, &aa, NULL);
-		p = ret.find_last_of(_T("\\"));
-		if (p>0)
-			ret.erase(0, p+1);	//如果有路径就删掉路径
+		vlpApp = _tcschr(lpCmd, _T(' '));
+		if (vlpApp)
+			*vlpApp = 0;
+		ret.assign(lpCmd);
+		if (vlpApp)
+			*vlpApp = _T(' ');
+		int p = ret.find_last_of(_T("\\"));
+		if (p!=-1)
+			ret.erase(0, p+1);
 // 		WriteFile(logfile, ret.c_str(), ret.length()*2, &aa, NULL);
 // 		WriteFile(logfile, _T("\n"), 2, &aa, NULL);
 // 		WriteFile(logfile, _T("==========\n"), 24, &aa, NULL);
 // 		CloseHandle(logfile);
 		return ret;
 	}
-// 	WriteFile(logfile, ret.c_str(), ret.length()*2, &aa, NULL);
-// 	WriteFile(logfile, _T("\n"), 2, &aa, NULL);
-// 	WriteFile(logfile, _T("==========\n"), 24, &aa, NULL);
 // 	CloseHandle(logfile);
-	return ret;
+	return L"";
 }
 
 template <class _Function>

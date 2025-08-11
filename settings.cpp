@@ -50,15 +50,15 @@ int _StrToInt(LPCTSTR pStr, int nDefault)
 #undef isdigit
 }
 
-wstring LowerCase(wstring str) {
+std::wstring LowerCase(std::wstring str) {
 	transform(str.begin(), str.end(), str.begin(), ::tolower);
 	return str;
 }
 
 // split a comma separated string into an int vector
-vector<int> SplitString(LPCTSTR str) {
+std::vector<int> SplitString(LPCTSTR str) {
 	CStringTokenizer token;
-	vector<int> intList;
+	std::vector<int> intList;
 	int argc = 0;
 	argc = token.Parse(str);
 
@@ -71,8 +71,8 @@ vector<int> SplitString(LPCTSTR str) {
 	return intList;
 }
 
-const wstring GetAppDir() {
-	static wstring AppDir;
+const std::wstring GetAppDir() {
+	static std::wstring AppDir;
 	if (AppDir.length()) {
 		return AppDir;
 	}
@@ -80,7 +80,7 @@ const wstring GetAppDir() {
 
 	int nSize = GetModuleFileName(NULL, name, MAX_PATH + 1);
 	PathRemoveFileSpec(name);
-	AppDir = wstring(name) + L"\\"; // path should always end with a "\"
+	AppDir = std::wstring(name) + L"\\"; // path should always end with a "\"
 	AppDir = LowerCase(AppDir);
 	return AppDir;
 }
@@ -202,14 +202,14 @@ void CGdippSettings::DelayedInit()
 
 	//FontSubstitutes
 	CFontSubstitutesIniArray arrFontSubstitutes;
-	wstring names = _T("FontSubstitutes@") + wstring(m_szexeName);
+	std::wstring names = _T("FontSubstitutes@") + std::wstring(m_szexeName);
 	if (_IsFreeTypeProfileSectionExists(names.c_str(), m_szFileName))
 		AddListFromSection(names.c_str(), m_szFileName, arrFontSubstitutes);
 	else
 		AddListFromSection(_T("FontSubstitutes"), m_szFileName, arrFontSubstitutes);
 	m_FontSubstitutesInfo.init(m_nFontSubstitutes, arrFontSubstitutes);
 
-	names = _T("Individual@") + wstring(m_szexeName);
+	names = _T("Individual@") + std::wstring(m_szexeName);
 	if (_IsFreeTypeProfileSectionExists(names.c_str(), NULL))
 		AddIndividualFromSection(names.c_str(), NULL, m_arrIndividual);
 	else
@@ -321,7 +321,7 @@ bool CGdippSettings::LoadSettings(HINSTANCE hModule)
 
 int CGdippSettings::_GetFreeTypeProfileIntFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, int nDefault, LPCTSTR lpszFile)
 {
-	wstring names = wstring((LPTSTR)lpszSection) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)lpszSection) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		return m_Config[names.c_str()][lpszKey].ToInt();
 	else
@@ -333,7 +333,7 @@ int CGdippSettings::_GetFreeTypeProfileIntFromSection(LPCTSTR lpszSection, LPCTS
 
 bool CGdippSettings::_GetFreeTypeProfileBoolFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, bool nDefault, LPCTSTR lpszFile)
 {
-	wstring names = wstring((LPTSTR)lpszSection) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)lpszSection) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		return m_Config[names.c_str()][lpszKey].ToBool();
 	else
@@ -343,9 +343,9 @@ bool CGdippSettings::_GetFreeTypeProfileBoolFromSection(LPCTSTR lpszSection, LPC
 		return nDefault;
 }
 
-wstring CGdippSettings::_GetFreeTypeProfileStrFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, const TCHAR* nDefault, LPCTSTR lpszFile)
+std::wstring CGdippSettings::_GetFreeTypeProfileStrFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, const TCHAR* nDefault, LPCTSTR lpszFile)
 {
-	wstring names = wstring((LPTSTR)lpszSection) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)lpszSection) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		return m_Config[names.c_str()][lpszKey].ToString();
 	else
@@ -377,7 +377,7 @@ bool CGdippSettings::_IsFreeTypeProfileSectionExists(LPCTSTR lpszKey, LPCTSTR lp
 
 float CGdippSettings::FastGetProfileFloat(LPCTSTR lpszSection, LPCTSTR lpszKey, float fDefault)
 {
-	wstring names = wstring((LPTSTR)lpszSection) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)lpszSection) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		return m_Config[names.c_str()][lpszKey].ToDouble();
 	else
@@ -389,7 +389,7 @@ float CGdippSettings::FastGetProfileFloat(LPCTSTR lpszSection, LPCTSTR lpszKey, 
 
 int CGdippSettings::FastGetProfileInt(LPCTSTR lpszSection, LPCTSTR lpszKey, int nDefault)
 {
-	wstring names = wstring((LPTSTR)lpszSection) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)lpszSection) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		return m_Config[names.c_str()][lpszKey].ToInt();
 	else
@@ -401,12 +401,12 @@ int CGdippSettings::FastGetProfileInt(LPCTSTR lpszSection, LPCTSTR lpszKey, int 
 
 float CGdippSettings::_GetFreeTypeProfileFloat(LPCTSTR lpszKey, float fDefault, LPCTSTR lpszFile)
 {
-	wstring names = wstring((LPTSTR)c_szFreeType) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)c_szFreeType) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		return m_Config[names.c_str()][lpszKey].ToInt();
 	else
 	{
-		names = wstring((LPTSTR)c_szGeneral) + _T("@") + wstring((LPTSTR)m_szexeName);
+		names = std::wstring((LPTSTR)c_szGeneral) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 		if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 			return m_Config[names.c_str()][lpszKey].ToDouble();
 		else
@@ -427,7 +427,7 @@ float CGdippSettings::_GetFreeTypeProfileBoundFloat(LPCTSTR lpszKey, float fDefa
 
 DWORD CGdippSettings::FastGetProfileString(LPCTSTR lpszSection, LPCTSTR lpszKey, LPCTSTR lpszDefault, LPTSTR lpszRet, DWORD cch)
 {
-	wstring names = wstring((LPTSTR)lpszSection) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)lpszSection) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 	{
 		LPCTSTR p = m_Config[names.c_str()][lpszKey];
@@ -457,7 +457,7 @@ DWORD CGdippSettings::FastGetProfileString(LPCTSTR lpszSection, LPCTSTR lpszKey,
 
 DWORD CGdippSettings::_GetFreeTypeProfileString(LPCTSTR lpszKey, LPCTSTR lpszDefault, LPTSTR lpszRet, DWORD cch, LPCTSTR lpszFile)
 {
-	wstring names = wstring((LPTSTR)c_szFreeType) + _T("@") + wstring((LPTSTR)m_szexeName);
+	std::wstring names = std::wstring((LPTSTR)c_szFreeType) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 	if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 	{
 		LPCTSTR p = m_Config[names.c_str()][lpszKey];
@@ -466,7 +466,7 @@ DWORD CGdippSettings::_GetFreeTypeProfileString(LPCTSTR lpszKey, LPCTSTR lpszDef
 	}
 	else
 	{
-		names = wstring((LPTSTR)c_szGeneral) + _T("@") + wstring((LPTSTR)m_szexeName);
+		names = std::wstring((LPTSTR)c_szGeneral) + _T("@") + std::wstring((LPTSTR)m_szexeName);
 		if (m_Config.IsPartExists(names.c_str()) && m_Config[names.c_str()].IsValueExists(lpszKey))
 		{
 			LPCTSTR p = m_Config[names.c_str()][lpszKey];
@@ -677,7 +677,7 @@ SKIP:
 	FT_PutEnv(y, WstringToString(sTemp).c_str());
 
 	char* buff = (char*)malloc(256);
-	int nTemp; bool bTemp; wstring sTemp;
+	int nTemp; bool bTemp; std::wstring sTemp;
 
 	// INFINALITY settings:
 	INF_INT_ENV( "INFINALITY_FT_CHROMEOS_STYLE_SHARPENING_STRENGTH", 0);
@@ -793,7 +793,7 @@ SKIP:
 	return true;
 }
 
-bool CGdippSettings::AddExcludeListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, set<wstring> & arr)
+bool CGdippSettings::AddExcludeListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, std::set<std::wstring> & arr)
 {
 	LPTSTR  buffer = _GetPrivateProfileSection(lpszSection, lpszFile);
 	if (buffer == NULL) {
@@ -807,7 +807,7 @@ bool CGdippSettings::AddExcludeListFromSection(LPCTSTR lpszSection, LPCTSTR lpsz
 	while (*p) {
 		bool b = false;
 		GetFontLocalName(p, buff);//转换字体脕E
-		set<wstring>::const_iterator it = arr.find(buff);
+		std::set<std::wstring>::const_iterator it = arr.find(buff);
 		if (it==arr.end())
 			arr.insert(buff);
 		for (; *p; p++);	//来到下一行
@@ -817,7 +817,7 @@ bool CGdippSettings::AddExcludeListFromSection(LPCTSTR lpszSection, LPCTSTR lpsz
 }
 
 //template <typename T>
-bool CGdippSettings::AddListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, set<wstring> & arr)
+bool CGdippSettings::AddListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, std::set<std::wstring> & arr)
 {
 	LPTSTR  buffer = _GetPrivateProfileSection(lpszSection, lpszFile);
 	if (buffer == NULL) {
@@ -828,7 +828,7 @@ bool CGdippSettings::AddListFromSection(LPCTSTR lpszSection, LPCTSTR lpszFile, s
 	LPTSTR p = buffer;
 	while (*p) {
 		bool b = false;
-		set<wstring>::const_iterator it = arr.find(p);
+		std::set<std::wstring>::const_iterator it = arr.find(p);
 		if (it==arr.end())
 			arr.insert(p);
 		for (; *p; p++);	//来到下一行
@@ -1241,9 +1241,9 @@ int CGdippSettings::_GetAlternativeProfileName(LPTSTR lpszName, LPCTSTR lpszFile
 	TCHAR szexe[MAX_PATH + 1];
 	TCHAR* pexe = szexe + GetModuleFileName(NULL, szexe, MAX_PATH);
 	while (pexe >= szexe && *pexe != '\\')
-		pexe--;
+		pexe++;
 	pexe++;
-	wstring exename = _T("General@") + wstring((LPTSTR)pexe);
+	std::wstring exename = _T("General@") + std::wstring((LPTSTR)pexe);
 	if (FastGetProfileString(exename.c_str(), _T("Alternative"), NULL, lpszName, MAX_PATH))
 	{
 		return true;
@@ -1703,7 +1703,7 @@ CFontSubstitutesInfo::initini(const CFontSubstitutesIniArray& iniarray)
 					buff2 = truefont2.lfFaceName;
 
 				if (m_mfontsub.find(buff)==m_mfontsub.end())
-					m_mfontsub[buff]=wstring(buff2);
+					m_mfontsub[buff]=std::wstring(buff2);
 */
 			}
 		}
@@ -1746,7 +1746,7 @@ CFontSubstitutesInfo::lookup(LOGFONT& lf) const
 	LOGFONT mylf(lf);
 	if (!(buff = FontNameCache.Find((TCHAR*)lf.lfFaceName)))
 	{
-		TCHAR localname[LF_FACESIZE+1];
+		TCHAR localname[LF_FACESIZE];
 		if (GetFontLocalName(mylf.lfFaceName, localname)) {
 			FontNameCache.Add((TCHAR*)lf.lfFaceName, localname);
 			StringCchCopy(mylf.lfFaceName, LF_FACESIZE, localname);
