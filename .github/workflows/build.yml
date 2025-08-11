@@ -103,13 +103,45 @@ jobs:
           Write-Host "경고: detours.lib 미발견 (vcpkg installed lib)" -ForegroundColor Yellow
         }
 
+    - name: Build FreeType (custom fork for MacType) x64
+      run: |
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+        $ftDir = Join-Path $PWD "deps/freetype"
+        if (!(Test-Path $ftDir)) {
+          git clone https://github.com/snowie2000/freetype.git $ftDir
+        }
+        # 선택: 필요한 경우 MacType 패치 적용 (존재 시에만)
+        if (Test-Path (Join-Path $PWD "doc/glyph_to_bitmapex.diff")) {
+          try { git -C $ftDir apply (Join-Path $PWD "doc/glyph_to_bitmapex.diff") } catch { Write-Host "패치 적용 건너뜀: $($_.Exception.Message)" -ForegroundColor Yellow }
+        }
+        $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
+        $ftSln = Join-Path $ftDir "builds/windows/vc2010/freetype.sln"
+        if (Test-Path $ftSln) {
+          msbuild $ftSln -p:Configuration=Release -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
+          $out1 = Join-Path $ftDir "objs/x64/Release/freetype.lib"
+          $out2 = Join-Path $ftDir "objs/AMD64/Release/freetype.lib"
+          $picked = $null
+          if (Test-Path $out1) { $picked = $out1 } elseif (Test-Path $out2) { $picked = $out2 } else {
+            $cand = Get-ChildItem -Path $ftDir -Recurse -Include freetype.lib -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($cand) { $picked = $cand.FullName }
+          }
+          if ($picked) {
+            Copy-Item $picked (Join-Path $PWD "lib/freetype.lib") -Force
+            Write-Host "freetype.lib 생성: $picked -> lib/freetype.lib" -ForegroundColor Green
+          } else {
+            Write-Host "경고: freetype.lib 산출물 찾기 실패" -ForegroundColor Yellow
+          }
+        } else {
+          Write-Host "경고: FreeType VS 솔루션 파일을 찾을 수 없습니다: $ftSln" -ForegroundColor Yellow
+        }
+
     - name: Build modern dependencies (vcpkg-based)
       run: |
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration Release
         echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
         if (Test-Path "$PWD\lib\detours.lib") { Write-Host "lib\\detours.lib 확인됨" -ForegroundColor Green } else { Write-Host "경고: lib\\detours.lib 없음" -ForegroundColor Yellow }
-        if (Test-Path "$PWD\vcpkg\installed\x64-windows\lib\freetype.lib") { Copy-Item "$PWD\vcpkg\installed\x64-windows\lib\freetype.lib" "$PWD\lib\freetype.lib" -Force; Write-Host "freetype.lib 복사 완료" -ForegroundColor Green } else { Write-Host "경고: vcpkg freetype.lib 미발견" -ForegroundColor Yellow }
+        if (!(Test-Path "$PWD\lib\freetype.lib") -and (Test-Path "$PWD\vcpkg\installed\x64-windows\lib\freetype.lib")) { Copy-Item "$PWD\vcpkg\installed\x64-windows\lib\freetype.lib" "$PWD\lib\freetype.lib" -Force; Write-Host "freetype.lib 복사 완료(vcpkg)" -ForegroundColor Green } else { if (!(Test-Path "$PWD\lib\freetype.lib")) { Write-Host "경고: freetype.lib 미발견 (fork/vcpkg 모두)" -ForegroundColor Yellow } }
         dir lib | findstr detours || echo "lib 폴더 내용 나열 완료"
 
     - name: Build IniParser (x64) and copy lib
