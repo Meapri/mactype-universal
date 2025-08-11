@@ -7,6 +7,10 @@
 #include <VersionHelpers.h>
 #include <freetype/ftmodapi.h>
 #include <iniparser.h>
+#include <string>
+#include <set>
+#include <map>
+#include <thread>
 
 // MacType FreeType 확장 함수 선언
 extern "C" {
