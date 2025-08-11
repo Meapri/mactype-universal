@@ -40,20 +40,20 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "..\x64\Rel+Detours\MacType64.Core.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\x64\Release\{#MyAppExeName}"; DestDir: "{app}\bin"; Flags: ignoreversion
 
-; 설정/프로필(원본에서 수집한 JSON/INI 포함)
-Source: "..\installer\upstream\original\config\*.json"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\installer\upstream\original\config\*.ini";  DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 설정/프로필(원본에서 수집한 JSON/INI 포함) - 경로 기준은 스크립트 파일(installer 폴더)
+Source: ".\upstream\original\config\*.json"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: ".\upstream\original\config\*.ini";  DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; 원본 패키지에서 가져온 파일 포함(존재 시)
-Source: "..\installer\upstream\original\ini\*"; DestDir: "{app}\ini"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('..\installer\upstream\original\ini'))
-Source: "..\installer\upstream\original\languages\*"; DestDir: "{app}\languages"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('..\installer\upstream\original\languages'))
-Source: "..\installer\upstream\original\MacType.ini"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\MacType.ini'))
-Source: "..\installer\upstream\original\license.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\license.txt'))
-Source: "..\installer\upstream\original\icons.dll"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\icons.dll'))
+; 원본 패키지에서 가져온 파일 포함(존재 시) - 없으면 스킵
+Source: ".\upstream\original\ini\*";        DestDir: "{app}\ini";       Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: ".\upstream\original\languages\*";  DestDir: "{app}\languages"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: ".\upstream\original\MacType.ini";   DestDir: "{app}";            Flags: ignoreversion skipifsourcedoesntexist
+Source: ".\upstream\original\license.txt";  DestDir: "{app}";            Flags: ignoreversion skipifsourcedoesntexist
+Source: ".\upstream\original\icons.dll";    DestDir: "{app}";            Flags: ignoreversion skipifsourcedoesntexist
 ; 유틸리티(옵션): 트레이/튜너 등 필요한 경우만 포함
-Source: "..\installer\upstream\original\MacTray.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\MacTray.exe'))
-Source: "..\installer\upstream\original\MacTuner.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\MacTuner.exe'))
-Source: "..\installer\upstream\original\updater.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\updater.exe'))
+Source: ".\upstream\original\MacTray.exe";   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: ".\upstream\original\MacTuner.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: ".\upstream\original\updater.exe";  DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\MacType Loader"; Filename: "{app}\bin\{#MyAppExeName}"
