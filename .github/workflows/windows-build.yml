@@ -1,8 +1,18 @@
 name: Windows Build (Rel+Detours x64)
 
 on:
+  # 메인으로 직접 push될 때만 실행
   push:
+    branches:
+      - main
+  # 메인으로의 PR 에서만 실행 (feature 브랜치 push는 실행하지 않음)
   pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
