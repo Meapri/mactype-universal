@@ -170,10 +170,18 @@ if (Test-Path $vcpkgIncludePath) {
     Copy-Item $vcpkgIncludePath $targetIncludePath -Recurse -Force
     Write-Host "헤더 파일 복사 완료: $targetIncludePath" -ForegroundColor Green
     
-    # 환경 변수 설정 (GitHub Actions용)
+    # 환경 변수 설정 (GitHub Actions 및 로컬 세션)
+    # VS 프로젝트는 $(FREETYPE_PATH)\include 및 $(INI_PARSER_PATH)를 사용하므로 해당 값을 채워준다.
+    $env:VCPKG_INCLUDE_PATH = $targetIncludePath
+    $env:VCPKG_LIB_PATH = $libDir
+    $env:FREETYPE_PATH = $vcpkgInstallPath   # $(FREETYPE_PATH)\include => <triplet>/include
+    $env:INI_PARSER_PATH = $targetIncludePath
+
     if ($env:GITHUB_ENV) {
         echo "VCPKG_INCLUDE_PATH=$targetIncludePath" >> $env:GITHUB_ENV
         echo "VCPKG_LIB_PATH=$libDir" >> $env:GITHUB_ENV
+        echo "FREETYPE_PATH=$vcpkgInstallPath" >> $env:GITHUB_ENV
+        echo "INI_PARSER_PATH=$targetIncludePath" >> $env:GITHUB_ENV
     }
 }
 
