@@ -18,8 +18,8 @@ jobs:
 
     strategy:
       matrix:
-        platform: [x86, x64]
-        # ARM64는 일단 제외하고 x86, x64를 먼저 테스트
+        platform: [x64]
+        # ARM64와 x86은 제외하고 x64만 빌드
 
     steps:
     - name: Checkout code
