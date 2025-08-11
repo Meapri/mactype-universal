@@ -100,7 +100,8 @@ static void errmsg(UINT id, DWORD code) {
     const auto MacTypeDll = L"MacType_ARM64.dll";
     const auto MacTypeDllA = "MacType_ARM64.dll";
 #elif defined(_M_X64)
-    #pragma comment (lib, "detours64.lib")
+	// vcpkg는 detours를 detours.lib로 제공합니다 (아키텍처 접미사 없음)
+	#pragma comment (lib, "detours.lib")
     const auto MacTypeDll = L"MacType64.dll";
     const auto MacTypeDllA = "MacType64.dll";
 #elif defined(_M_IX86)

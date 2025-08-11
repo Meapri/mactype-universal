@@ -24,6 +24,11 @@
 #include "EventLogging.h"
 #include "hookCounter.h"
 
+#ifndef USE_DETOURS
+// 기본 훅 엔진을 Detours로 통일 (vcpkg의 라이브러리명과 일치)
+#define USE_DETOURS 1
+#endif
+
 #ifdef STATIC_LIB
 	#include <aux_ulib.h>
 	#include <psapi.h>
@@ -52,11 +57,8 @@ HINSTANCE g_dllInstance;
 #ifdef USE_DETOURS
 
 #include "detours.h"
-#ifdef _M_IX86
+// vcpkg는 아키텍처별 접미사 없이 detours.lib를 제공합니다.
 #pragma comment (lib, "detours.lib")
-#else
-#pragma comment (lib, "detours64.lib")
-#endif
 // DATA_foo、ORIG_foo の２つをまとめて定義するマクロ
 #define HOOK_MANUALLY HOOK_DEFINE
 #define HOOK_DEFINE(rettype, name, argtype, arglist) \
