@@ -188,16 +188,42 @@ if (Test-Path $vcpkgIncludePath) {
 # 추가 의존성 빌드 (vcpkg에서 지원하지 않는 것들)
 Write-Host "추가 의존성 빌드 중..." -ForegroundColor Yellow
 
-# IniParser (C# 라이브러리이므로 별도 처리)
-$iniparserDir = Join-Path $depsDir "ini-parser"
-if (-not (Test-Path $iniparserDir)) {
-    Write-Host "INI 파서 다운로드 중..." -ForegroundColor Cyan
-    # GitHub Actions에서 인증 문제 우회를 위해 토큰 사용
-    git clone https://github.com/ndevilla/iniparser.git $iniparserDir
+# IniParser 헤더/라이브러리 준비
+# - 헤더는 ndevilla/iniparser에서 가져오고,
+# - 정적 라이브러리는 snowie2000/IniParser를 빌드하여 제공 (프로젝트가 요구하는 iniparser[64].lib 명명 규칙 맞춤)
+$iniparserHeadersSrcDir = Join-Path $depsDir "ini-parser"
+if (-not (Test-Path $iniparserHeadersSrcDir)) {
+    Write-Host "INI 파서 헤더 다운로드 중 (ndevilla/iniparser)..." -ForegroundColor Cyan
+    git clone https://github.com/ndevilla/iniparser.git $iniparserHeadersSrcDir
 }
 
-# INI 파서는 .NET/C# 라이브러리이므로 MacType에서 직접 사용하지 않을 수 있음
-# 대신 간단한 C++ INI 파서를 생성하거나 다른 대안 사용
+# snowie2000/IniParser (네이티브 lib 빌드)
+$iniParserRepoDir = Join-Path $depsDir "iniparser-native"
+if (-not (Test-Path $iniParserRepoDir)) {
+    Write-Host "INI 파서 네이티브 라이브러리 다운로드 중 (snowie2000/IniParser)..." -ForegroundColor Cyan
+    git clone https://github.com/snowie2000/IniParser.git $iniParserRepoDir
+}
+
+try {
+    Push-Location $iniParserRepoDir
+    $vsPlatform = switch ($Platform) { "x86" { "x86" } "x64" { "x64" } "ARM64" { "ARM64" } default { "x64" } }
+    $cfg = if ($Configuration) { $Configuration } else { "Release" }
+    Write-Host "IniParser 빌드: Configuration=$cfg, Platform=$vsPlatform" -ForegroundColor Yellow
+    msbuild "src/IniParser.sln" -p:Configuration=$cfg -p:Platform=$vsPlatform -v:minimal
+
+    # 산출물 복사 (프로젝트가 기대하는 파일명으로 리네이밍)
+    $builtLib = Join-Path $iniParserRepoDir "src/IniParser/bin/$vsPlatform/$cfg/iniparser.lib"
+    if (Test-Path $builtLib) {
+        $suffix = switch ($Platform) { "x86" { "" } "x64" { "64" } default { "64" } }
+        $targetIniLib = Join-Path $libDir ("iniparser{0}.lib" -f $suffix)
+        Copy-Item $builtLib $targetIniLib -Force
+        Write-Host "IniParser 라이브러리 복사 완료: $targetIniLib" -ForegroundColor Green
+    } else {
+        Write-Host "경고: IniParser 라이브러리 산출물을 찾을 수 없습니다: $builtLib" -ForegroundColor Yellow
+    }
+} finally {
+    Pop-Location
+}
 
 # wow64ext (32비트에서만 필요)
 if ($Platform -eq "x86") {
@@ -234,10 +260,10 @@ Write-Host "IniParser 헤더 복사 중..." -ForegroundColor Yellow
 $includeDir = Join-Path $depsDir "include"
 New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
 
-if (Test-Path $iniparserDir) {
+if (Test-Path $iniparserHeadersSrcDir) {
     # ndevilla/iniparser의 헤더 파일은 루트 디렉터리와 src 디렉터리에 있을 수 있음
     $iniparserHeaders = @("iniparser.h", "dictionary.h")
-    $possibleDirs = @($iniparserDir, (Join-Path $iniparserDir "src"))
+    $possibleDirs = @($iniparserHeadersSrcDir, (Join-Path $iniparserHeadersSrcDir "src"))
     
     foreach ($dir in $possibleDirs) {
         if (Test-Path $dir) {
@@ -262,14 +288,14 @@ if (Test-Path $iniparserDir) {
     
     if ($copiedHeaders.Count -eq 0) {
         Write-Host "경고: IniParser 헤더를 찾을 수 없습니다. 디렉터리 구조를 확인합니다..." -ForegroundColor Yellow
-        Get-ChildItem $iniparserDir -Recurse -Name "*.h" | Select-Object -First 10 | ForEach-Object {
+        Get-ChildItem $iniparserHeadersSrcDir -Recurse -Name "*.h" | Select-Object -First 10 | ForEach-Object {
             Write-Host "  발견된 헤더: $_" -ForegroundColor Cyan
         }
     } else {
         Write-Host "IniParser 헤더 복사 완료: $($copiedHeaders -join ', ')" -ForegroundColor Green
     }
 } else {
-    Write-Host "경고: IniParser 디렉터리를 찾을 수 없습니다: $iniparserDir" -ForegroundColor Yellow
+    Write-Host "경고: IniParser 헤더 소스 디렉터리를 찾을 수 없습니다: $iniparserHeadersSrcDir" -ForegroundColor Yellow
 }
 
 Write-Host "=== 현대적 종속성 빌드 완료 ===" -ForegroundColor Green
