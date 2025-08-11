@@ -109,6 +109,7 @@ jobs:
         .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration Release
         echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
         if (Test-Path "$PWD\lib\detours.lib") { Write-Host "lib\\detours.lib 확인됨" -ForegroundColor Green } else { Write-Host "경고: lib\\detours.lib 없음" -ForegroundColor Yellow }
+        if (Test-Path "$PWD\vcpkg\installed\x64-windows\lib\freetype.lib") { Copy-Item "$PWD\vcpkg\installed\x64-windows\lib\freetype.lib" "$PWD\lib\freetype.lib" -Force; Write-Host "freetype.lib 복사 완료" -ForegroundColor Green } else { Write-Host "경고: vcpkg freetype.lib 미발견" -ForegroundColor Yellow }
         dir lib | findstr detours || echo "lib 폴더 내용 나열 완료"
 
     - name: Build IniParser (x64) and copy lib
