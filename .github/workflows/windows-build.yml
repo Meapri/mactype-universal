@@ -1,17 +1,16 @@
 name: Windows Build (Rel+Detours x64)
 
 on:
-  # 메인으로 직접 push될 때만 실행
-  push:
-    branches:
-      - main
-  # 메인으로의 PR 에서만 실행 (feature 브랜치 push는 실행하지 않음)
+  # PR 이벤트에서만 자동 실행 (중복 방지를 위해 push 트리거 제거)
   pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - main
+  # 필요 시 수동 실행 지원
+  workflow_dispatch:
 
 concurrency:
-  group: windows-build-${{ github.ref }}
+  group: windows-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
