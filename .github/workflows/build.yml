@@ -131,10 +131,10 @@ jobs:
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         msbuild $sln -p:Configuration=Release -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
         # 산출물 위치/이름 자동 탐색 (대소문자/경로 다양성 대응)
-        $candidates = Get-ChildItem -Path $inipDir -Recurse -Filter "*IniParser*.lib" -ErrorAction SilentlyContinue
+        $candidates = Get-ChildItem -Path $inipDir -Recurse -Include *.lib -ErrorAction SilentlyContinue
         $picked = $null
         foreach ($f in $candidates) {
-          if ($f.FullName -match "x64\\Release" -or $f.FullName -match "\\Release\\") { $picked = $f.FullName; break }
+          if ($f.FullName -match "IniParser" -and ($f.FullName -match "x64\\Release" -or $f.FullName -match "\\x64\\")) { $picked = $f.FullName; break }
         }
         if (-not $picked -and $candidates) { $picked = $candidates[0].FullName }
         if ($picked) {
@@ -149,7 +149,7 @@ jobs:
         $msbuildPlatform = "x64"
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         echo "사용할 Windows SDK 버전: $sdkVersion"
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-RelDetours.log;verbosity=normal
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl "/flp:logfile=msbuild-RelDetours.log;verbosity=normal"
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
