@@ -8,12 +8,33 @@
 #include <freetype/ftmodapi.h>
 #include <iniparser.h>
 #include <string>
-#include <set>
-#include <map>
-#include <thread>
+#include <vector>
 #include <fstream>
-#include <codecvt>
-#include <locale>
+#include "json.hpp"
+
+using json = nlohmann::json;
+
+namespace { // Anonymous namespace for helper functions
+
+// Convert a wide Unicode string to a UTF-8 string
+std::string to_utf8(const std::wstring& wstr) {
+    if (wstr.empty()) return std::string();
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+    std::string strTo(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
+    return strTo;
+}
+
+// Convert a UTF-8 string to a wide Unicode string
+std::wstring to_wstring(const std::string& str) {
+    if (str.empty()) return std::wstring();
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstrTo(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
+}
+
+} // namespace
 
 // MacType FreeType 확장 함수 선언
 extern "C" {
@@ -21,10 +42,6 @@ extern "C" {
 }
 
 // MacType INI 파서 클래스 정의
-#include "json.hpp"
-
-using json = nlohmann::json;
-
 class CParseIni {
 public:
     class Section {
@@ -45,9 +62,7 @@ public:
             double ToDouble() const { return _j.is_number() ? _j.get<double>() : 0.0; }
             std::wstring ToString() const {
                 if (_j.is_string()) {
-                    std::string s = _j.get<std::string>();
-                    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-                    return converter.from_bytes(s);
+                    return to_wstring(_j.get<std::string>());
                 }
                 return L"";
             }
@@ -57,9 +72,7 @@ public:
                 // For this specific project, it seems to be used in a safe way.
                 static std::wstring static_str;
                 if (_j.is_string()) {
-                    std::string s = _j.get<std::string>();
-                    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-                    static_str = converter.from_bytes(s);
+                    static_str = to_wstring(_j.get<std::string>());
                     return static_str.c_str();
                 }
                 return L"";
@@ -67,14 +80,12 @@ public:
         };
 
         bool IsValueExists(LPCTSTR key) const {
-            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-            std::string skey = converter.to_bytes(key);
+            std::string skey = to_utf8(key);
             return _j.contains(skey);
         }
 
         Value operator[](LPCTSTR key) const {
-            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-            std::string skey = converter.to_bytes(key);
+            std::string skey = to_utf8(key);
             if (_j.contains(skey)) {
                 return Value(_j[skey]);
             }
@@ -86,14 +97,11 @@ public:
             // This implementation is unsafe if the wstring is temporary.
             static std::wstring static_str;
             if (_j.is_string()) {
-                std::string s = _j.get<std::string>();
-                std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-                static_str = converter.from_bytes(s);
+                static_str = to_wstring(_j.get<std::string>());
                 return static_str.c_str();
             }
             else if (!_key.empty()) {
-                 std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-                 static_str = converter.from_bytes(_key);
+                 static_str = to_wstring(_key);
                  return static_str.c_str();
             }
             return L"";
@@ -105,14 +113,12 @@ private:
 
 public:
     bool IsPartExists(LPCTSTR section) const {
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::string ssection = converter.to_bytes(section);
+        std::string ssection = to_utf8(section);
         return _j.contains(ssection);
     }
 
     Section operator[](LPCTSTR section) const {
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-        std::string ssection = converter.to_bytes(section);
+        std::string ssection = to_utf8(section);
         if (_j.contains(ssection)) {
             return Section(_j[ssection], ssection, nullptr);
         }
@@ -124,13 +130,13 @@ public:
     }
 
     void LoadFromFile(LPCTSTR filename) {
-        std::wifstream ifs(filename);
+        std::ifstream ifs(filename);
         if (ifs.is_open()) {
-            ifs.imbue(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
             try {
                 _j = json::parse(ifs);
             }
-            catch (json::parse_error& e) {
+            catch (json::parse_error&) {
+                // ignore parse errors
             }
         }
     }
