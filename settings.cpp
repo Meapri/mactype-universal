@@ -782,13 +782,17 @@ SKIP:
 	}
 
 	// [Individual]セクションからフォント別設定を読み込む
-	wstring names = _T("LcdFilterWeight@") + wstring(m_szexeName);
+	std::wstring names = _T("LcdFilterWeight@") + std::wstring(m_szexeName);
 	if (_IsFreeTypeProfileSectionExists(names.c_str(), lpszFile))
 		m_bUseCustomLcdFilter = AddLcdFilterFromSection(names.c_str(), lpszFile, m_arrLcdFilterWeights);
 	else
 		m_bUseCustomLcdFilter = AddLcdFilterFromSection(_T("LcdFilterWeight"), lpszFile, m_arrLcdFilterWeights);
 	
-	m_bUseCustomPixelLayout = AddPixelModeFromSection(_T("PixelLayout"), lpszFile, m_arrPixelLayout);
+	names = _T("PixelLayout@") + std::wstring(m_szexeName);
+	if (_IsFreeTypeProfileSectionExists(names.c_str(), lpszFile))
+		m_bUseCustomPixelLayout = AddPixelModeFromSection(names.c_str(), lpszFile, m_arrPixelLayout);
+	else
+		m_bUseCustomPixelLayout = AddPixelModeFromSection(_T("PixelLayout"), lpszFile, m_arrPixelLayout);
 
 	return true;
 }
