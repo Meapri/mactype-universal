@@ -1805,6 +1805,10 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 
 	WORD* gi = new WORD[cbString];
 	WORD* ggi = gi;
+	
+	// 원본 포인터들 저장 (두 번째 루프를 위해)
+	FT_Referenced_Glyph* GlyphArrayOrg = GlyphArray;
+	FT_DRAW_STATE* drStateOrg = drState;
 
 
 	//Snowie!!
@@ -2394,10 +2398,10 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
 	// 두 번째 루프 - 포인터들을 처음으로 되돌리기
-	lpString = lpStringOrg;
+	lpString = lpStart;
 	gi = ggi;
 	GlyphArray = GlyphArrayOrg;
-	drState = AAList;
+	drState = drStateOrg;
 
 	for (int i = 0; lpString < lpEnd; ++lpString, gi++, GlyphArray++, drState++, ++AAList,/*ggdi32++,*/ i++) {
 		WCHAR wch = *lpString;
