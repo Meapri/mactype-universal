@@ -145,12 +145,21 @@ if (Test-Path $sourceLibPath) {
     }
     
     # Detours
-    $detoursLib = Get-ChildItem -Path $sourceLibPath -Filter "*detours*" -File | Select-Object -First 1
+    $detoursLib = Get-ChildItem -Path $sourceLibPath -Filter "detours.lib" -File | Select-Object -First 1
+    if (-not $detoursLib) {
+        $detoursLib = Get-ChildItem -Path $sourceLibPath -Filter "*detours*" -File | Select-Object -First 1
+    }
     if ($detoursLib) {
-        $targetDetoursLib = Join-Path $libDir "detours$libSuffix.lib"
+        # 아키텍처 접미사 버전
+        $targetDetoursLibWithSuffix = Join-Path $libDir "detours$libSuffix.lib"
+        Copy-Item $detoursLib.FullName $targetDetoursLibWithSuffix -Force
+        Write-Host "Detours 라이브러리 복사 완료: $targetDetoursLibWithSuffix" -ForegroundColor Green
+
+        # pragma(lib, "detours.lib") 호환을 위해 접미사 없는 이름도 제공
+        $targetDetoursLib = Join-Path $libDir "detours.lib"
         Copy-Item $detoursLib.FullName $targetDetoursLib -Force
-        Write-Host "Detours 라이브러리 복사 완료: $targetDetoursLib" -ForegroundColor Green
-        
+        Write-Host "Detours 라이브러리(이름 호환) 복사 완료: $targetDetoursLib" -ForegroundColor Green
+
         # MacType이 요구하는 easyhk 이름으로도 복사
         $targetEasyhookLib = Join-Path $libDir "easyhk$libSuffix.lib"
         Copy-Item $detoursLib.FullName $targetEasyhookLib -Force
