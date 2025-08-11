@@ -40,9 +40,20 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "..\x64\Rel+Detours\MacType64.Core.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "..\x64\Release\{#MyAppExeName}"; DestDir: "{app}\bin"; Flags: ignoreversion
 
-; 설정/프로필(있는 경우만)
-Source: "..\installer\upstream\config\*.ini"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('..\installer\upstream\config'))
-Source: "..\config\*.ini"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('..\config'))
+; 설정/프로필(원본에서 수집한 JSON/INI 포함)
+Source: "..\installer\upstream\original\config\*.json"; DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\installer\upstream\original\config\*.ini";  DestDir: "{app}\config"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+; 원본 패키지에서 가져온 파일 포함(존재 시)
+Source: "..\installer\upstream\original\ini\*"; DestDir: "{app}\ini"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('..\installer\upstream\original\ini'))
+Source: "..\installer\upstream\original\languages\*"; DestDir: "{app}\languages"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('..\installer\upstream\original\languages'))
+Source: "..\installer\upstream\original\MacType.ini"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\MacType.ini'))
+Source: "..\installer\upstream\original\license.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\license.txt'))
+Source: "..\installer\upstream\original\icons.dll"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\icons.dll'))
+; 유틸리티(옵션): 트레이/튜너 등 필요한 경우만 포함
+Source: "..\installer\upstream\original\MacTray.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\MacTray.exe'))
+Source: "..\installer\upstream\original\MacTuner.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\MacTuner.exe'))
+Source: "..\installer\upstream\original\updater.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: FileExists(ExpandConstant('..\installer\upstream\original\updater.exe'))
 
 [Icons]
 Name: "{group}\MacType Loader"; Filename: "{app}\bin\{#MyAppExeName}"
