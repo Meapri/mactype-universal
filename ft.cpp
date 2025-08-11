@@ -2393,7 +2393,11 @@ BOOL ForEachGetGlyphGGO(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString
 	if (!bAllowDefaultLink && FTInfo.face_id_list_num > 1)
 		FTInfo.face_id_list_num--;	//如果是symbol页那就不链接到宋体
 
-	// 두 번째 루프 - 변수들이 이미 함수 시작에서 선언됨
+	// 두 번째 루프 - 포인터들을 처음으로 되돌리기
+	lpString = lpStringOrg;
+	gi = ggi;
+	GlyphArray = GlyphArrayOrg;
+	drState = AAList;
 
 	for (int i = 0; lpString < lpEnd; ++lpString, gi++, GlyphArray++, drState++, ++AAList,/*ggdi32++,*/ i++) {
 		WCHAR wch = *lpString;
