@@ -15,7 +15,7 @@ private:
     
     DWORD tls_index_;
     mutable std::mutex array_mutex_;
-    std::vector<std::unique_ptr<T>> managed_objects_;
+    mutable std::vector<std::unique_ptr<T>> managed_objects_;
 
 public:
     ModernTlsData() : tls_index_(INVALID_TLS_VALUE) {}
