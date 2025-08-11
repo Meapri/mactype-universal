@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <windows.h>
 #include <tchar.h>
 #include <mmsystem.h>	//mmioFOURCC

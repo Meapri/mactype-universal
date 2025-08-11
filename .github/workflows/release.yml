@@ -34,8 +34,8 @@ jobs:
         New-Item -ItemType Directory -Force -Path deps
         New-Item -ItemType Directory -Force -Path release
         
-  # Build only x64
-  $platforms = @("x64")
+        # Build all dependencies and MacType for both platforms
+        $platforms = @("x86", "x64")
         
         foreach ($platform in $platforms) {
           Write-Host "Building for platform: $platform"
@@ -69,7 +69,14 @@ jobs:
           }
           cd ../..
           
-          # wow64ext는 x86 전용이므로 스킵
+          # Build wow64ext (only for x86)
+          if ($platform -eq "x86" -and !(Test-Path "deps/wow64ext")) {
+            git clone https://github.com/snowie2000/rewolf-wow64ext.git deps/wow64ext
+            cd deps/wow64ext
+            msbuild wow64ext.sln -p:Configuration=Release -p:Platform=Win32
+            Copy-Item "Release/wow64ext.lib" "../../lib/wow64ext.lib"
+            cd ../..
+          }
           
           # Build Detours
           if (!(Test-Path "deps/detours")) {
@@ -99,12 +106,14 @@ jobs:
 
     - name: Create release archives
       run: |
+        Compress-Archive -Path "release/mactype-x86/*" -DestinationPath "mactype-x86.zip"
         Compress-Archive -Path "release/mactype-x64/*" -DestinationPath "mactype-x64.zip"
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
+          mactype-x86.zip
           mactype-x64.zip
         tag_name: ${{ github.ref_name }}
         name: MacType ${{ github.ref_name }}
