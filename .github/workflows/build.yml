@@ -130,25 +130,19 @@ jobs:
         }
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         msbuild $sln -p:Configuration=Release -p:Platform=x64 -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
-        $outs = @(
-          "src/IniParser/bin/x64/Release/iniparser.lib",
-          "IniParser/bin/x64/Release/iniparser.lib",
-          "bin/x64/Release/iniparser.lib",
-          "src/IniParser/bin/Release/iniparser.lib",
-          "IniParser/bin/Release/iniparser.lib",
-          "bin/Release/iniparser.lib"
-        )
-        $found = $false
-        foreach ($o in $outs) {
-          $full = Join-Path $inipDir $o
-          if (Test-Path $full) {
-            Copy-Item $full (Join-Path $PWD "lib/iniparser64.lib") -Force
-            Write-Host "iniparser64.lib 생성: $full -> lib/iniparser64.lib" -ForegroundColor Green
-            $found = $true
-            break
-          }
+        # 산출물 위치/이름 자동 탐색 (대소문자/경로 다양성 대응)
+        $candidates = Get-ChildItem -Path $inipDir -Recurse -Filter "*IniParser*.lib" -ErrorAction SilentlyContinue
+        $picked = $null
+        foreach ($f in $candidates) {
+          if ($f.FullName -match "x64\\Release" -or $f.FullName -match "\\Release\\") { $picked = $f.FullName; break }
         }
-        if (-not $found) { Write-Host "경고: iniparser64.lib 산출물을 찾지 못했습니다" -ForegroundColor Yellow }
+        if (-not $picked -and $candidates) { $picked = $candidates[0].FullName }
+        if ($picked) {
+          Copy-Item $picked (Join-Path $PWD "lib/iniparser64.lib") -Force
+          Write-Host "iniparser64.lib 생성: $picked -> lib/iniparser64.lib" -ForegroundColor Green
+        } else {
+          Write-Host "경고: IniParser 산출물(.lib)을 찾지 못했습니다" -ForegroundColor Yellow
+        }
 
     - name: Build MacType (Rel+Detours x64)
       run: |
@@ -156,12 +150,6 @@ jobs:
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         echo "사용할 Windows SDK 버전: $sdkVersion"
         msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-RelDetours.log;verbosity=normal
-
-    - name: Build MacType (Release x64)
-      run: |
-        $msbuildPlatform = "x64"
-        $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl /flp:logfile=msbuild-Release.log;verbosity=normal
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -173,5 +161,4 @@ jobs:
           **/*.dll
           **/*.exe
           msbuild-RelDetours.log
-          msbuild-Release.log
         retention-days: 30
