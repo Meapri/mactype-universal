@@ -1,10 +1,16 @@
 name: Build MacType
 
 on:
+  # 메인 브랜치에 대한 직접 푸시만 빌드
   push:
-    branches: [ "main", "directwrite", "develop" ]
+    branches: [ "main" ]
+  # 기능 브랜치는 PR에서만 검증 -> 중복 빌드 방지
   pull_request:
-    branches: [ "main", "directwrite" ]
+    branches: [ "main", "directwrite", "develop" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # Build configuration
