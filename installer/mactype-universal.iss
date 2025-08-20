@@ -26,7 +26,7 @@ SolidCompression=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 SetupIconFile=upstream\original\icons.dll
-UninstallDisplayIcon={app}\bin\macloader64.exe
+UninstallDisplayIcon={app}\MacType.exe
 LicenseFile=upstream\original\license.txt
 
 [Languages]
@@ -35,24 +35,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
 ; === x64 아키텍처 파일들 ===
-Source: "Files\x64\MacType64.Core.dll"; DestDir: "{app}\bin\x64"; DestName: "MacType64.Core.dll"; Flags: ignoreversion; Check: IsX64
-Source: "Files\x64\macloader64.exe"; DestDir: "{app}\bin\x64"; DestName: "macloader64.exe"; Flags: ignoreversion; Check: IsX64
-Source: "Files\x64\MacTray.exe"; DestDir: "{app}\bin\x64"; DestName: "MacTray.exe"; Flags: ignoreversion; Check: IsX64
-Source: "Files\x64\MacTuner.exe"; DestDir: "{app}\bin\x64"; DestName: "MacTuner.exe"; Flags: ignoreversion; Check: IsX64
-Source: "Files\x64\MacWiz.exe"; DestDir: "{app}\bin\x64"; DestName: "MacWiz.exe"; Flags: ignoreversion; Check: IsX64
-Source: "Files\x64\mt64agnt.exe"; DestDir: "{app}\bin\x64"; DestName: "mt64agnt.exe"; Flags: ignoreversion; Check: IsX64
+Source: "x64\Rel+Detours\MacType64.Core.dll"; DestDir: "{app}\bin\x64"; DestName: "MacType64.Core.dll"; Flags: ignoreversion; Check: IsX64
+Source: "x64\Release\macloader64.exe"; DestDir: "{app}\bin\x64"; DestName: "macloader64.exe"; Flags: ignoreversion; Check: IsX64
 
 ; === x86 아키텍처 파일들 ===
-Source: "Files\x86\MacType.Core.dll"; DestDir: "{app}\bin\x86"; DestName: "MacType.Core.dll"; Flags: ignoreversion; Check: not IsX64
-Source: "Files\x86\MacLoader.exe"; DestDir: "{app}\bin\x86"; DestName: "MacLoader.exe"; Flags: ignoreversion; Check: not IsX64
-Source: "Files\x86\MacTray.exe"; DestDir: "{app}\bin\x86"; DestName: "MacTray.exe"; Flags: ignoreversion; Check: not IsX64
-Source: "Files\x86\MacTuner.exe"; DestDir: "{app}\bin\x86"; DestName: "MacTuner.exe"; Flags: ignoreversion; Check: not IsX64
-Source: "Files\x86\MacWiz.exe"; DestDir: "{app}\bin\x86"; DestName: "MacWiz.exe"; Flags: ignoreversion; Check: not IsX64
-Source: "Files\x86\mt64agnt.exe"; DestDir: "{app}\bin\x86"; DestName: "mt64agnt.exe"; Flags: ignoreversion; Check: not IsX64
+Source: "Rel+Detours\MacType.Core.dll"; DestDir: "{app}\bin\x86"; DestName: "MacType.Core.dll"; Flags: ignoreversion; Check: not IsX64
+Source: "Release\MacLoader.exe"; DestDir: "{app}\bin\x86"; DestName: "MacLoader.exe"; Flags: ignoreversion; Check: not IsX64
 
 ; === 공통 실행 파일 (64비트 우선) ===
-Source: "Files\x64\macloader64.exe"; DestDir: "{app}"; DestName: "MacType.exe"; Flags: ignoreversion; Check: IsX64
-Source: "Files\x86\MacLoader.exe"; DestDir: "{app}"; DestName: "MacType.exe"; Flags: ignoreversion; Check: not IsX64
+Source: "x64\Release\macloader64.exe"; DestDir: "{app}"; DestName: "MacType.exe"; Flags: ignoreversion; Check: IsX64
+Source: "Release\MacLoader.exe"; DestDir: "{app}"; DestName: "MacType.exe"; Flags: ignoreversion; Check: not IsX64
 
 ; === 설정 파일들 (JSON 우선) ===
 ; 기본 설정 파일들
@@ -71,32 +63,22 @@ Source: "upstream\original\icons.dll"; DestDir: "{app}\resources"; Flags: ignore
 
 [Icons]
 Name: "{group}\MacType"; Filename: "{app}\MacType.exe"
-Name: "{group}\MacType Tuner"; Filename: "{app}\bin\x64\MacTuner.exe"; Check: IsX64
-Name: "{group}\MacType Tuner"; Filename: "{app}\bin\x86\MacTuner.exe"; Check: not IsX64
-Name: "{group}\MacType Tray"; Filename: "{app}\bin\x64\MacTray.exe"; Check: IsX64
-Name: "{group}\MacType Tray"; Filename: "{app}\bin\x86\MacTray.exe"; Check: not IsX64
-Name: "{group}\MacType Agent"; Filename: "{app}\bin\x64\mt64agnt.exe"; Check: IsX64
-Name: "{group}\MacType Agent"; Filename: "{app}\bin\x86\mt64agnt.exe"; Check: not IsX64
 Name: "{group}\Uninstall MacType"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\bin\x64\mt64agnt.exe"; Parameters: "/install"; Check: IsX64; Flags: runhidden
-Filename: "{app}\bin\x86\mt64agnt.exe"; Parameters: "/install"; Check: not IsX64; Flags: runhidden
 Filename: "{app}\MacType.exe"; Description: "MacType 실행"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{app}\bin\x64\mt64agnt.exe"; Parameters: "/uninstall"; Check: IsX64; Flags: runhidden
-Filename: "{app}\bin\x86\mt64agnt.exe"; Parameters: "/uninstall"; Check: not IsX64; Flags: runhidden
+; 서비스 제거는 수동으로 수행하거나 별도 스크립트로 처리
 
 [Registry]
 ; 서비스 모드 활성화 (관리자 권한 필요)
 Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: string; ValueName: "{app}\MacType.exe"; ValueData: "RUNASADMIN"; Flags: uninsdeletevalue
-Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: string; ValueName: "{app}\bin\x64\MacType64.Core.dll"; ValueData: "RUNASADMIN"; Flags: uninsdeletevalue
-Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: string; ValueName: "{app}\bin\x86\MacType.Core.dll"; ValueData: "RUNASADMIN"; Flags: uninsdeletevalue
 
-; DLL 경로 등록
+; 설치 정보 등록
 Root: HKLM; Subkey: "SOFTWARE\MacType"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKLM; Subkey: "SOFTWARE\MacType"; ValueType: string; ValueName: "ConfigPath"; ValueData: "{app}\config"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "SOFTWARE\MacType"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
 
 [Code]
 function IsX64: Boolean;
