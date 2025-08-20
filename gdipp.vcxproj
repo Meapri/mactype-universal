@@ -625,7 +625,7 @@
     <Link>
       <AdditionalDependencies>usp10.lib;dwrite.lib;detours.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Platform)'=='x64'">usp10.lib;dwrite.lib;detours.lib;freetype64.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Platform)'=='ARM64'">usp10.lib;dwrite.lib;detours.lib;freetype_arm64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Platform)'=='ARM64'">usp10.lib;dwrite.lib;detours.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>expfunc.def</ModuleDefinitionFile>

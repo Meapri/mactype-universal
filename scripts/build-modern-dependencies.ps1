@@ -128,7 +128,7 @@ if (-not (Test-Path $vcpkgInstallPath)) {
 $libSuffix = switch ($Platform) {
     "x86" { "" }
     "x64" { "64" }
-    "ARM64" { "_arm64" }
+    "ARM64" { "" }  # ARM64는 freetype.lib 사용
     default { "64" }
 }
 
