@@ -44,14 +44,20 @@ if (Test-Path $patchFile) {
         # 먼저 패치가 이미 적용되었는지 확인
         $checkResult = git apply --check $patchFile 2>&1
         if ($LASTEXITCODE -eq 0) {
-            git apply $patchFile --verbose
-            Write-Host "패치 적용 성공" -ForegroundColor Green
+            git apply $patchFile --verbose 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "패치 적용 성공" -ForegroundColor Green
+            } else {
+                Write-Host "패치 적용 실패 (git apply 에러): $LASTEXITCODE" -ForegroundColor Yellow
+                Write-Host "패치 없이 계속 진행..." -ForegroundColor Yellow
+            }
         } else {
-            Write-Host "패치를 적용할 수 없거나 이미 적용됨: $checkResult" -ForegroundColor Yellow
+            Write-Host "패치를 적용할 수 없거나 이미 적용됨 (check 실패): $checkResult" -ForegroundColor Yellow
             Write-Host "패치 없이 계속 진행..." -ForegroundColor Yellow
         }
     } catch {
-        Write-Host "패치 적용 실패, 무시하고 계속: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "패치 적용 중 예외 발생: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "패치 없이 계속 진행..." -ForegroundColor Yellow
     }
 }
 
