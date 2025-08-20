@@ -226,13 +226,16 @@ Write-Host "JSON 기반 설정 시스템 사용 중..." -ForegroundColor Green
 $includeDir = Join-Path $depsDir "include"
 New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
 
+$vcpkgIncludeDir = "$PWD\vcpkg\installed\$triplet\include"
+Write-Host "vcpkg include 디렉토리: $vcpkgIncludeDir" -ForegroundColor Cyan
+
 if (Test-Path $vcpkgIncludeDir) {
     # vcpkg에서 제공하는 헤더 파일만 복사 (FreeType, Detours 등)
     Write-Host "vcpkg 헤더 파일 복사 중..." -ForegroundColor Green
-    Copy-Item "$vcpkgIncludeDir/*" $includeDir -Recurse -Force
+    Copy-Item "$vcpkgIncludeDir\*" $includeDir -Recurse -Force
     Write-Host "vcpkg 헤더 파일 복사 완료" -ForegroundColor Green
 } else {
-    Write-Host "vcpkg include 디렉터리를 찾을 수 없습니다" -ForegroundColor Yellow
+    Write-Host "vcpkg include 디렉터리를 찾을 수 없습니다: $vcpkgIncludeDir" -ForegroundColor Red
 }
 
 Write-Host "=== 현대적 종속성 빌드 완료 ===" -ForegroundColor Green
