@@ -310,7 +310,7 @@ void CGdippSettings::DelayedInit()
 bool CGdippSettings::LoadSettings(HINSTANCE hModule)
 {
 	CCriticalSectionLock __lock(CCriticalSectionLock::CS_SETTING);
-	int nSize = ::GetModuleFileName(hModule, m_szFileName, MAX_PATH - sizeof(".ini") + 1); 
+	    int nSize = ::GetModuleFileName(hModule, m_szFileName, MAX_PATH - sizeof(".json") + 1); 
 	if (!nSize) {
 		return false;
 	}
@@ -534,7 +534,9 @@ bool CGdippSettings::LoadAppSettings(LPCTSTR lpszFile)
 	// [Individual]
 	// ＭＳ Ｐゴシック=0,1,2,3,4,5
 	GetOSVersion();
-	WritePrivateProfileString(NULL, NULL, NULL, lpszFile);
+
+	// JSON 기반 설정에서는 INI 플러시 불필요
+	// WritePrivateProfileString(NULL, NULL, NULL, lpszFile);
 
 	m_Config.Clear();
 	m_Config.LoadFromFile(lpszFile);
