@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64]
+        platform: [x86, x64, ARM64]
 
     steps:
     - name: Checkout code
@@ -49,7 +49,13 @@ jobs:
         if ($selectedSdk) {
           echo "WindowsSDKVersion=$selectedSdk" >> $env:GITHUB_ENV
           echo "WINDOWS_SDK_VERSION=$selectedSdk" >> $env:GITHUB_ENV
-          $sdkBinPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64"
+          # 플랫폼별 SDK bin 경로 설정
+          $sdkBinPath = switch ("${{ matrix.platform }}") {
+            "x86" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x86" }
+            "x64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }
+            "ARM64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }  # ARM64 크로스컴파일
+            default { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }
+          }
           if (Test-Path $sdkBinPath) { echo "$sdkBinPath" >> $env:GITHUB_PATH }
         }
         echo "=== Visual Studio 설치 확인 ==="
@@ -105,6 +111,14 @@ jobs:
           "x86" { "Win32" }
           "x64" { "x64" }
           "ARM64" { "ARM64" }
+          default { "x64" }
+        }
+
+        # 플랫폼별 호스트 아키텍처 설정 (ARM64 크로스컴파일용)
+        $hostArch = switch ("${{ matrix.platform }}") {
+          "x86" { "x86" }
+          "x64" { "x64" }
+          "ARM64" { "x64" }  # ARM64는 x64 호스트에서 크로스컴파일
           default { "x64" }
         }
         # 플랫폼별 라이브러리 접미사
@@ -169,6 +183,18 @@ jobs:
             default { "x64" }
           }
         }
+
+        # 플랫폼별 호스트 아키텍처 설정 (ARM64 크로스컴파일용)
+        $hostArch = $env:HOST_ARCH
+        if (-not $hostArch) {
+          $hostArch = switch ("${{ matrix.platform }}") {
+            "x86" { "x86" }
+            "x64" { "x64" }
+            "ARM64" { "x64" }  # ARM64는 x64 호스트에서 크로스컴파일
+            default { "x64" }
+          }
+        }
+        echo "HOST_ARCH=$hostArch" >> $env:GITHUB_ENV
 
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         $ftSln = Join-Path $ftDir "builds/windows/vc2010/freetype.sln"
@@ -415,7 +441,18 @@ jobs:
         }
 
         Write-Host "MacType 빌드 시작: 플랫폼=$msbuildPlatform, 구성=Rel+Detours" -ForegroundColor Green
-        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl "/flp:logfile=msbuild-RelDetours-${{ matrix.platform }}.log;verbosity=normal"
+
+        # 플랫폼별 MSBuild 호스트 아키텍처 설정
+        $msbuildHostArch = switch ("${{ matrix.platform }}") {
+          "x86" { "x86" }
+          "x64" { "x64" }
+          "ARM64" { "x64" }  # ARM64는 x64 호스트에서 크로스컴파일
+          default { "x64" }
+        }
+
+        Write-Host "MSBuild 호스트 아키텍처: $msbuildHostArch" -ForegroundColor Cyan
+
+        msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl "/flp:logfile=msbuild-RelDetours-${{ matrix.platform }}.log;verbosity=normal" /p:PreferredToolArchitecture=$msbuildHostArch
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
