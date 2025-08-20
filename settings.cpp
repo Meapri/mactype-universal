@@ -314,7 +314,7 @@ bool CGdippSettings::LoadSettings(HINSTANCE hModule)
 	if (!nSize) {
 		return false;
 	}
-	ChangeFileName(m_szFileName, nSize, L"MacType.ini");
+	ChangeFileName(m_szFileName, nSize, L"MacType.json");
 	
 	return LoadAppSettings(m_szFileName);
 }

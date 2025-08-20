@@ -101,9 +101,7 @@ if (Test-Path $libDir) {
     
     $libFiles = @(
         "freetype.lib",
-        "freetype64.lib", 
-        "iniparser.lib",
-        "iniparser64.lib",
+        "freetype64.lib",
         "wow64ext.lib",
         "detours.lib",
         "detours64.lib"
