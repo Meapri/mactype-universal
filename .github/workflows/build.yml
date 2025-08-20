@@ -606,17 +606,22 @@ jobs:
       run: |
         Write-Host "통합 universal installer 빌드 시작..." -ForegroundColor Green
 
-        # 통합 installer 스크립트 사용 (있으면)
+        # 새로운 통합 installer 스크립트 사용
         if (Test-Path "installer/mactype-universal.iss") {
+          Write-Host "MacType Universal 인스톨러 빌드 중..." -ForegroundColor Cyan
           iscc .\installer\mactype-universal.iss
-        } elseif (Test-Path "installer/mactype.iss") {
-          iscc .\installer\mactype.iss
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Universal installer 빌드 성공!" -ForegroundColor Green
+            Get-ChildItem installer/Output -Name
+          } else {
+            Write-Host "❌ Universal installer 빌드 실패!" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
         } else {
-          Write-Host "Installer 스크립트를 찾을 수 없습니다!" -ForegroundColor Red
+          Write-Host "❌ installer/mactype-universal.iss 파일을 찾을 수 없습니다!" -ForegroundColor Red
           exit 1
         }
-
-        Write-Host "Universal installer 빌드 완료!" -ForegroundColor Green
 
     - name: Upload universal installer
       uses: actions/upload-artifact@v4
