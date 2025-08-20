@@ -365,6 +365,62 @@ jobs:
 
         msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl "/flp:logfile=msbuild-RelDetours-${{ matrix.platform }}.log;verbosity=normal" /p:PreferredToolArchitecture=$msbuildHostArch
 
+    - name: Verify build artifacts architecture
+      run: |
+        Write-Host "빌드 산출물 아키텍처 검증 시작..." -ForegroundColor Green
+        Write-Host "플랫폼: ${{ matrix.platform }}" -ForegroundColor Cyan
+
+        # 플랫폼별 예상 MACHINE 값
+        $expectedMachine = switch ("${{ matrix.platform }}") {
+          "x86" { "0x014C" }  # IMAGE_FILE_MACHINE_I386
+          "x64" { "0x8664" }  # IMAGE_FILE_MACHINE_AMD64
+          "ARM64" { "0xAA64" } # IMAGE_FILE_MACHINE_ARM64
+          default { "0x0000" }
+        }
+
+        Write-Host "예상 아키텍처: $expectedMachine" -ForegroundColor Yellow
+
+        # DLL과 EXE 파일들 찾기
+        $dllFiles = Get-ChildItem -Path "Rel+Detours" -Filter "*.dll" -Recurse
+        $exeFiles = Get-ChildItem -Path "Rel+Detours" -Filter "*.exe" -Recurse
+
+        $allFiles = @($dllFiles) + @($exeFiles)
+        $verificationPassed = $true
+
+        foreach ($file in $allFiles) {
+          Write-Host "검증 중: $($file.Name)" -ForegroundColor Gray
+
+          # dumpbin으로 PE 헤더 정보 확인
+          $dumpbinOutput = & dumpbin /headers "$($file.FullName)" 2>&1
+
+          # MACHINE 값 추출
+          $machineLine = $dumpbinOutput | Where-Object { $_ -match "machine \(x86\)|machine \(x64\)|machine \(ARM64\)" }
+          if ($machineLine) {
+            $actualMachine = if ($machineLine -match "machine \(x86\)") { "0x014C" }
+                            elseif ($machineLine -match "machine \(x64\)") { "0x8664" }
+                            elseif ($machineLine -match "machine \(ARM64\)") { "0xAA64" }
+                            else { "UNKNOWN" }
+
+            Write-Host "  실제 아키텍처: $actualMachine" -ForegroundColor Cyan
+
+            if ($actualMachine -eq $expectedMachine) {
+              Write-Host "  ✅ 아키텍처 일치" -ForegroundColor Green
+            } else {
+              Write-Host "  ❌ 아키텍처 불일치! 예상: $expectedMachine, 실제: $actualMachine" -ForegroundColor Red
+              $verificationPassed = $false
+            }
+          } else {
+            Write-Host "  ⚠️ 아키텍처 정보를 찾을 수 없음" -ForegroundColor Yellow
+          }
+        }
+
+        if (-not $verificationPassed) {
+          Write-Host "아키텍처 검증 실패! 빌드를 중단합니다." -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "✅ 모든 산출물 아키텍처 검증 완료" -ForegroundColor Green
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -432,6 +488,53 @@ jobs:
 
         Write-Host "Installer 파일 구조 확인:" -ForegroundColor Cyan
         Get-ChildItem installer/Files -Recurse | Select-Object FullName
+
+    - name: Verify installer artifacts architecture
+      run: |
+        Write-Host "인스톨러 파일 아키텍처 검증 시작..." -ForegroundColor Green
+
+        # 플랫폼별 검증
+        $platforms = @("x86", "x64")
+
+        foreach ($platform in $platforms) {
+          Write-Host "플랫폼 $platform 검증 중..." -ForegroundColor Cyan
+
+          $platformPath = "installer/Files/$platform"
+          if (Test-Path $platformPath) {
+            $dllFiles = Get-ChildItem -Path $platformPath -Filter "*.dll" -Recurse
+            $exeFiles = Get-ChildItem -Path $platformPath -Filter "*.exe" -Recurse
+
+            $expectedMachine = switch ($platform) {
+              "x86" { "0x014C" }
+              "x64" { "0x8664" }
+              default { "0x0000" }
+            }
+
+            foreach ($file in ($dllFiles + $exeFiles)) {
+              $dumpbinOutput = & dumpbin /headers "$($file.FullName)" 2>&1
+              $machineLine = $dumpbinOutput | Where-Object { $_ -match "machine \(x86\)|machine \(x64\)|machine \(ARM64\)" }
+
+              if ($machineLine) {
+                $actualMachine = if ($machineLine -match "machine \(x86\)") { "0x014C" }
+                                elseif ($machineLine -match "machine \(x64\)") { "0x8664" }
+                                elseif ($machineLine -match "machine \(ARM64\)") { "0xAA64" }
+                                else { "UNKNOWN" }
+
+                if ($actualMachine -ne $expectedMachine) {
+                  Write-Host "❌ $platform 파일 아키텍처 불일치: $($file.Name)" -ForegroundColor Red
+                  Write-Host "  예상: $expectedMachine, 실제: $actualMachine" -ForegroundColor Red
+                  exit 1
+                } else {
+                  Write-Host "  ✅ $($file.Name) - 아키텍처 일치" -ForegroundColor Green
+                }
+              }
+            }
+          } else {
+            Write-Host "⚠️ $platform 폴더를 찾을 수 없음: $platformPath" -ForegroundColor Yellow
+          }
+        }
+
+        Write-Host "✅ 인스톨러 파일 아키텍처 검증 완료" -ForegroundColor Green
 
     - name: Build universal installer
       run: |
