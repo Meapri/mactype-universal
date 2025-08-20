@@ -466,18 +466,94 @@ jobs:
           msbuild-RelDetours-${{ matrix.platform }}.log
         retention-days: 30
 
+  create-installer:
+    name: Create Universal Installer
+    runs-on: windows-latest
+    needs: [build]  # 세 플랫폼 빌드가 모두 성공해야 실행
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download x86 build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: mactype-x86-builds
+        path: artifacts/x86/
+
+    - name: Download x64 build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: mactype-x64-builds
+        path: artifacts/x64/
+
+    - name: Download ARM64 build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: mactype-ARM64-builds
+        path: artifacts/ARM64/
+
     - name: Install Inno Setup
-      if: matrix.platform == 'x64'
       run: choco install innosetup --no-progress -y
 
-    - name: Build installer
-      if: matrix.platform == 'x64'
-      run: iscc .\installer\mactype.iss
+    - name: Prepare installer files
+      run: |
+        Write-Host "세 플랫폼 빌드 파일들을 통합 installer 디렉토리로 복사..." -ForegroundColor Green
 
-    - name: Upload installer
-      if: matrix.platform == 'x64'
+        # installer 디렉토리 생성
+        New-Item -ItemType Directory -Force -Path installer/Files/x86 | Out-Null
+        New-Item -ItemType Directory -Force -Path installer/Files/x64 | Out-Null
+        New-Item -ItemType Directory -Force -Path installer/Files/ARM64 | Out-Null
+
+        # x86 파일들 복사
+        if (Test-Path "artifacts/x86/Release") {
+          Copy-Item "artifacts/x86/Release/*" "installer/Files/x86/" -Recurse -Force
+        }
+        if (Test-Path "artifacts/x86/Rel+Detours") {
+          Copy-Item "artifacts/x86/Rel+Detours/*" "installer/Files/x86/" -Recurse -Force
+        }
+
+        # x64 파일들 복사
+        if (Test-Path "artifacts/x64/Release") {
+          Copy-Item "artifacts/x64/Release/*" "installer/Files/x64/" -Recurse -Force
+        }
+        if (Test-Path "artifacts/x64/Rel+Detours") {
+          Copy-Item "artifacts/x64/Rel+Detours/*" "installer/Files/x64/" -Recurse -Force
+        }
+
+        # ARM64 파일들 복사
+        if (Test-Path "artifacts/ARM64/Release") {
+          Copy-Item "artifacts/ARM64/Release/*" "installer/Files/ARM64/" -Recurse -Force
+        }
+        if (Test-Path "artifacts/ARM64/Rel+Detours") {
+          Copy-Item "artifacts/ARM64/Rel+Detours/*" "installer/Files/ARM64/" -Recurse -Force
+        }
+
+        Write-Host "Installer 파일 구조 확인:" -ForegroundColor Cyan
+        Get-ChildItem installer/Files -Recurse | Select-Object FullName
+
+    - name: Build universal installer
+      run: |
+        Write-Host "통합 universal installer 빌드 시작..." -ForegroundColor Green
+
+        # 통합 installer 스크립트 사용 (있으면)
+        if (Test-Path "installer/mactype-universal.iss") {
+          iscc .\installer\mactype-universal.iss
+        } elseif (Test-Path "installer/mactype.iss") {
+          iscc .\installer\mactype.iss
+        } else {
+          Write-Host "Installer 스크립트를 찾을 수 없습니다!" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Universal installer 빌드 완료!" -ForegroundColor Green
+
+    - name: Upload universal installer
       uses: actions/upload-artifact@v4
       with:
-        name: mactype-installer
-        path: installer\Output\MacType-Setup-x64.exe
+        name: mactype-universal-installer
+        path: |
+          installer/Output/*.exe
+          installer/Output/*.msi
         retention-days: 30
