@@ -21,6 +21,10 @@
     {
       "name": "nlohmann-json",
       "version>=": "3.11.3"
+    },
+    {
+      "name": "iniparser",
+      "version>=": "4.1"
     }
   ],
   "overrides": [

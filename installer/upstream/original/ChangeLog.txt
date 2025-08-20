@@ -1,0 +1,283 @@
+2024/8/15
+修正特定情况下启动程序容易出现访问被拒绝错误的问题
+EasyHook现在静态编译
+
+Fixed a bug where an access denied error may occur when starting an app (especially for the first time after boot)
+Easyhook is not statically linked.
+
+2023/5/31
+修正DirectWrite中ID2D1Device5/6中序列号错误导致的崩溃问题#938，感谢@lhecker
+支持通过命令行和程序化方法控制mactype的启用和退出
+
+Fixed a crash that was caused by incorrect indices of ID2D1Device5 and ID2D1Device6 #938. Thanks to @lhecker
+Implemented basic external control via messaging and CLI.
+
+2022/7/29
+修正字体独立设置不生效的问题
+VisTuner现在支持64位应用
+
+Fixed a bug where individual font settings are not effective.
+Added x64 application support to Vistunner
+Make vistuner button descriptions more descriptive.
+
+2022/7/20
+使用新的HarmonyLCD渲染模式，兼容Pentile排列的LCD（测试）
+大幅优化MacTray，服务模式可以稳定的运行，不再中途失效
+服务模式也可以自动刷新进程界面，避免渲染迟缓问题
+新的实时可视化Tuner，在真实程序中调整您的配置
+优化子进程加载，减少unloaddll中的程序出错的可能性
+
+This test version includes mactype files working in Harmony LCD rendering mode, which means we can now work with pentile LCD panels.
+Mactray.exe has been vastly improved, so that:
+- service mode now work properly
+- application UIs can be automatically refreshed when mactype is engaged.
+- wmi sink is now much more stable than before, mactype should be working flawlessly after reboot
+A new real-time tuner has been added, which allows you to tune your profiles while reflects what it looks like in real applications
+Child process hooking has been improved so that there will be fewer cases that applications listed in the unloaddll section still got loaded (and unload after) causing certain apps to crash.
+
+2021/5/7
+CET兼容，解决在新CPU上部分程序会崩溃的问题
+升级freetype到最新版本。
+取消对环境变量的劫持
+修正在部分情况下退出mactype会导致崩溃的问题
+修正服务模式在启动时会无法渲染部分进程的问题
+移除注册表模式
+移除全局强制字体替换功能(ForceChangeFont)
+修正win10下点阵字导致崩溃的问题
+移除xp支持
+修正一处字体替换乱码的问题（Telegram相关）
+允许排除或包括一整个文件夹（需要以\结尾）
+修正light+lcd工作不正常的问题
+优化翻译
+
+Compatible with shadow stack (introduced with new CPUs), system apps on Windows 10+new CPU no longer crash because of that.
+Bump FreeType to the latest git version.
+No longer intercept application environments.
+Fixed a bug where an application could crash on mactype unloading because of some improper memory writes and assumptions.
+Fixed a bug where in service mode, some applications occasionally couldn't be rendered.
+Remove registry mode from Mactype wizard. 
+Remove the option ForceChangeFont
+Fixed a bug where an application may crash if a bitmap font is used (Windows10 only)
+Dropped support for Windows XP. (R.I.P. WinXP)
+Fixed a bug where texts could be garbled when fontsubsitutes is used. (e.g. with Telegram)
+A folder and its subfolders can now be included/excluded, it just needs to be ended with a "\"
+Fixed a bug where light+lcd didn't work as intended.
+Localization adjustment.
+
+2016/09/04
+修正了会导致chrome崩溃的问题
+添加了GammaValueDW参数用于dw模式下的gamma值，范围与gammavalue相同，不设此值时自动计算。
+
+The crash bug related to chrome has been solved.
+added a new param: GammaValueDW, only used in DW tweak. If left unset, it behaviors the same as previous release.
+
+2016/09/02
+修正了会导致windows卡在启动界面很久的问题
+修正了clipboxfix参数无效的问题
+
+fixed the problem that will cause windows stucking for a very long time during boot.
+fixed a problem that prevent clipboxfix from taking effect
+
+2016/09/01
+修正了Windows7下可能导致无法启动的问题
+修正了edge会很卡的问题
+允许使用[experimental@exename.exe] clipboxfix=0的方式来禁用斩脚优化。
+
+fixed a serious bug that causes windows7 stuck at boot
+fixed a issue that causes edge to crash and lag
+allow you to disable clipbox fix by add [experimental@exename.exe] clipboxfix=0 to your profile.
+
+2016/08/27
+重大更新版本，推荐升级
+Windows 8/8.1/10 兼容
+重新启用对DirectWrite的优化配置支持（感谢silight-jp的研究，请访问他的网站给予支持：http://silight.hatenablog.jp/entry/MacTypePatch）
+请使用DirectWrite=1来启用此功能。此功能无参数可配置，优化参数根据其他参数而自动给出。
+升级FreeType到2.6.5，注意此版本的渲染效果和旧版有所不同。
+Tuner和Tray支持HiDPI
+向导的缩略图列表支持文件夹
+向导多语言切换优化
+修正Chrome会缺字或者渲染混乱的问题
+支持Metro程序渲染加载，各模式均可（请务必安装到Program Files文件夹并选中安装到系统文件夹，否则无效）
+修正firefox等程序中纵排文字重叠的问题，同样感谢silight-jp提供的问题解决思路
+解决部分程序中文字斩脚的问题，再次感谢silight-jp的优秀代码
+解决了Windows8/8.1/10下加载到挂起程序会卡住很久的问题
+Tray现在可以识别最新的系统版本了
+
+2016/08/27
+Major update, all users are recommended to upgrade.
+Windows 8/8.1/10 ready
+Directwrite tweak re-enabled. (Great thanks to silight-jp, please visit: http://silight.hatenablog.jp/entry/MacTypePatch and give him a thumb up)
+** Enable this tweak by adding DirectWrite=1 to general section. No other parameter available.
+Upgraded freetype to 2.6.5, note that this version brings to you a different rendering result.
+HiDPI ready for MacTuner and MacTray
+Folder support for mactype wizard in profile thumbnail view.
+Multi-lang switch effect optimized.
+Chrome compatibility improved, no letter missing or rendering chaos anymore (I hope).
+Injecting to metro is possible in all loading modes. (Mactype has to be install to program files folder and installing to system folder option should be checked).
+Vertical layout in firefox and some other programs has been fixed (Special thanks to silight-jp)
+Clipbox parameter is no longer required, it has been fixed for all programs. (thanks to silight-jp again, you are such a great developer)
+Mactray can identify more os versions now.
+
+2013/12/31
+这是一个维护版本，修正了部分已知bug
+Win8下字体替换不生效的bug
+带空格文字不被渲染的bug
+大量字体没有默认链接的bug
+字体排列不准确的bug，仍有一些情况下会排列不准确，目前仍需要改进
+
+
+2012/10/22
+修复安装程序bug
+修复在某些情况下缺字的bug
+优化日文翻译
+
+2012/10/20
+修复Win8下蓝屏bug
+增强优化Easyhook
+支持Win8下子进程加载。
+修复多个64位系统下崩溃的bug
+支持泰文，阿拉伯文，希伯来文，支持韩文，支持注音符号
+优化翻译，感谢ryunosuke.tnk
+自动启用Cleartype以支持Chrome
+更改HintSmallFont为默认关闭。
+移除DirectWrite支持
+修正outlook等软件热替换错误的问题
+启用自动更新
+修改独立配置中反锯齿模式等设置不生效的问题
+修改一些字体显示不全的问题
+修正几个会导致进程卡死的bug
+修正字体宽度错误的一个bug
+修正firefox进程残留问题
+修正一些资源泄露bug
+修正MacTray会导致UnloadDll列表无限叠加的问题
+修正win32模式下字体大小不一的问题
+
+
+2012/04/06
+	对双色阴影增加了文字亮度判断，现在阴影的浓度会根据文字的色彩自动进行调整了，避免出现灰色字看不清之类的问题。
+	字体缓存优化。
+	现在MacType不会占用字体文件了，可以正常操作字体文件了。
+	支持GDI坐标缩放（不支持扭曲和旋转）。基于此功能升级，我们现在可以支持：
+		Office系列和WPS系列等的嵌入式对象渲染。
+		WPS全系统渲染，包括ET和WPP
+		GTK框架程序，如Wireshark，pidgen，Tortoisehg等
+		Chrome18及以上
+		Safari
+		AutoCAD（需使用TrueType字体，hztxt等线型字体不支持）
+		更多其他程序~~
+	修正热替换中众多bug，现在热替换更完美。
+	优化UnloadDll段的加载策略，现在兼容性更好。卡巴斯基加入UnloadDll段中不会导致无法自动启动了。
+	修正字体宽度判断的问题
+	修正@字体颜色错误的问题
+	修正X64中运行蓝屏的问题
+	支持没有东亚语言支持包的精简版系统
+	修正了扩展区字体显示的问题
+	修正了空中刷新后字体链接混乱的问题
+	修正了字体识别错误的问题
+	修正了独立粗体情况下BoldWeight无效的问题
+	添加了对小字体附加Hinting的功能
+	不再支持渲染超过4095号大小的字体（我想也没有人会需要它……）
+		支持DirectWrite显示优化（非freetype渲染支持）因此现在
+		所有IE9，IE10内核程序显示效果得到优化，如世界之窗、腾讯QQ等
+		Firefox在开启硬件加速后效果优化。
+		DirectWrite下支持热替换。
+	
+
+MacTray
+	界面优化，现在列表会显示应用程序的名称了。
+	界面优化，现在列表会以颜色的形式直观提示加载状态了
+	界面优化，现在列表可以任意排序了
+	界面优化，现在可以在主界面快捷显示、隐藏系统进程了
+	现在如果没有ini文件夹的话不会错误的显示所有其他文件夹了
+
+用户向导
+	现在如果没有MacType.ini文件的话不会出错了
+	现在多语言切换完全正常了
+
+MacTuner
+	修正了在某些系统下无限重启MacTuner的问题。
+	修正了向导模式保存出来的配置缺项并且参数错误的问题
+	修正了向导模式保存后立即应用不支持子文件夹的问题
+	现在高级模式可以重新载入配置了。
+	优化多语言支持。
+
+GDIBench
+	添加了GDI坐标缩放测试。应用缩放后测试分数会下降，但是效果不变（ClearType分数也会下降）。此测试目前只能用MacType完成。
+
+已知问题
+	热替换不能和Safari内置渲染共同使用，会导致无限崩溃
+	Kugou在MacType下界面文字会变糊，这是和迅雷5一样的设计问题。
+
+新参数：
+	[General]
+	DirectWrite=1
+	;DirectWrite（IE和firefox的硬件加速）支持开关。1=开启，0=关闭，默认开启。
+	HintSmallFont=1
+	;强制对小字体使用Hinting，使小字体更清晰。此参数仅在AntiAliasMode=1、4、5时有效。1=开启，0=关闭，默认开启
+
+
+
+2011/10/19
+1、修正各种已知BUG
+2、国际语言支持
+3、完善Tuner
+4、使用新主程序图标
+
+2011/4/21
+1、修正一处MacType新内存管理导致的崩溃问题
+2、使用一整套新的图标
+3、支持自定义阴影，阴影参数全面更新。
+	--------------------------------------
+	Shadow=X偏移,Y偏移,深色文字阴影浓度,深色文字阴影颜色,浅色文字阴影浓度,浅色文字阴影颜色
+	如：
+	Shadow=1,1,30,FFFFFF,40,0
+	即表示深色文字使用30%浓度的白色阴影，浅色文字使用40%浓度的黑色阴影。
+	阴影表示方式为BBGGRR
+	不填写浅色文字颜色则视为和深色一致，两者都不填写则视为使用黑色阴影，如
+	Shadow=1,1,30
+	--------------------------------------
+4、支持在同一配置中为不同进程使用不同设置
+	--------------------------------------
+	[General]
+	xxx=xxx
+	[General@winword.exe]
+	xxx=xxx	;此处设置仅对winword.exe进程生效
+	[fontsubstitues]
+	yyy=yyy
+	[fontsubstitutes@excel.exe]
+	zzz=xxx	;此处设置仅对excel.exe生效
+
+	支持等价定义，即a程序和b程序使用同一个配置，如：
+	[general@a.exe]
+	xxx=xxx
+	[general@b.exe]
+	alternative=a.exe	;表示b.exe使用a.exe的配置
+	[exclude],[unloaddll],[excludemodule],[includemodule]不支持此语法。
+	--------------------------------------
+5、支持公共排除列表，在MacType.ini中填写的[unloaddll],[excludemodule]对所有配置文件均生效。
+6、添加了新的XMac配置文件，全面支持阴影体验。
+
+已知问题：
+1、对颜色的深浅判定并不准确
+2、MacTuner尚未支持新参数。
+
+
+2011/3/10
+1、修正EasyHook一处导致崩溃的问题
+2、修正缓存错误导致常规体和斜体混乱等的问题
+3、修正一处可能导致字体大小不对的问题
+4、性能优化
+5、修正一处热替换导致乱码的问题
+6、现在安全替换也能替换默认字体了
+7、现在停用MacType不会导致一些程序的字体变成System了
+8、修正环境变量的问题
+9、安装程序现在会修正已经存在的环境变量问题了
+10、新参数提供
+	---------------------------------
+	举例：
+	[General]
+	MaxBitmap=12
+	大小写忽略
+	功能：
+	小于此大小的文字将优先使用内嵌点阵。
+	---------------------------------

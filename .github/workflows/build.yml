@@ -93,24 +93,59 @@ jobs:
 
     - name: Install detours and deps via vcpkg (manifest)
       run: |
-        # 플랫폼별 triplet 설정
+        # 플랫폼별 triplet 설정 (더 정확한 매핑)
         $triplet = switch ("${{ matrix.platform }}") {
           "x86" { "x86-windows" }
           "x64" { "x64-windows" }
           "ARM64" { "arm64-windows" }
           default { "x64-windows" }
         }
+        # 플랫폼별 MSBuild 플랫폼 이름 매핑
+        $msbuildPlatform = switch ("${{ matrix.platform }}") {
+          "x86" { "Win32" }
+          "x64" { "x64" }
+          "ARM64" { "ARM64" }
+          default { "x64" }
+        }
+        # 플랫폼별 라이브러리 접미사
+        $libSuffix = switch ("${{ matrix.platform }}") {
+          "x86" { "" }
+          "x64" { "64" }
+          "ARM64" { "_arm64" }
+          default { "64" }
+        }
         
         .\vcpkg\vcpkg.exe install --triplet $triplet
         echo "VCPKG_INSTALLED_DIR=$PWD\vcpkg\installed" >> $env:GITHUB_ENV
         echo "VCPKG_TARGET_TRIPLET=$triplet" >> $env:GITHUB_ENV
+        echo "MSBUILD_PLATFORM=$msbuildPlatform" >> $env:GITHUB_ENV
+        echo "LIB_SUFFIX=$libSuffix" >> $env:GITHUB_ENV
         .\vcpkg\vcpkg.exe list
-        
-        $libPath = "$PWD\vcpkg\installed\$triplet\lib\detours.lib"
-        if (Test-Path $libPath) {
-          Write-Host "detours.lib 확인됨: $libPath" -ForegroundColor Green
+
+        # 플랫폼별 Detours 라이브러리 이름 결정
+        $detoursLibName = switch ("${{ matrix.platform }}") {
+          "x86" { "detours.lib" }
+          "x64" { "detours.lib" }  # vcpkg에서는 보통 detours.lib로 통일
+          "ARM64" { "detours.lib" }
+          default { "detours.lib" }
+        }
+
+        # vcpkg 라이브러리 설치 확인
+        $vcpkgLibPath = "$PWD\vcpkg\installed\$triplet\lib"
+        Write-Host "vcpkg 라이브러리 경로 확인: $vcpkgLibPath" -ForegroundColor Green
+        if (Test-Path $vcpkgLibPath) {
+          Get-ChildItem $vcpkgLibPath -Filter *.lib | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Cyan
+          }
         } else {
-          Write-Host "경고: detours.lib 미발견 (vcpkg installed lib)" -ForegroundColor Yellow
+          Write-Host "경고: vcpkg 라이브러리 경로를 찾을 수 없습니다: $vcpkgLibPath" -ForegroundColor Yellow
+        }
+
+        $libPath = "$PWD\vcpkg\installed\$triplet\lib\$detoursLibName"
+        if (Test-Path $libPath) {
+          Write-Host "$detoursLibName 확인됨: $libPath" -ForegroundColor Green
+        } else {
+          Write-Host "경고: $detoursLibName 미발견 (vcpkg installed lib)" -ForegroundColor Yellow
         }
 
     - name: Build FreeType (custom fork for MacType)
@@ -124,43 +159,69 @@ jobs:
         if (Test-Path (Join-Path $PWD "doc/glyph_to_bitmapex.diff")) {
           try { git -C $ftDir apply (Join-Path $PWD "doc/glyph_to_bitmapex.diff") } catch { Write-Host "패치 적용 건너뜀: $($_.Exception.Message)" -ForegroundColor Yellow }
         }
-        # 플랫폼별 MSBuild 플랫폼 설정
-        $msbuildPlatform = switch ("${{ matrix.platform }}") {
-          "x86" { "Win32" }
-          "x64" { "x64" }
-          "ARM64" { "ARM64" }
-          default { "x64" }
+        # 플랫폼별 MSBuild 플랫폼 설정 (환경변수에서 가져오기)
+        $msbuildPlatform = $env:MSBUILD_PLATFORM
+        if (-not $msbuildPlatform) {
+          $msbuildPlatform = switch ("${{ matrix.platform }}") {
+            "x86" { "Win32" }
+            "x64" { "x64" }
+            "ARM64" { "ARM64" }
+            default { "x64" }
+          }
         }
-        
+
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         $ftSln = Join-Path $ftDir "builds/windows/vc2010/freetype.sln"
         if (Test-Path $ftSln) {
+          Write-Host "FreeType 빌드 시작: 플랫폼=$msbuildPlatform, 구성=Release" -ForegroundColor Green
           msbuild $ftSln -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
           
-          # 플랫폼별 출력 경로
+          # 플랫폼별 출력 경로 (x86 우선순위 조정)
           $platformOutputs = switch ("${{ matrix.platform }}") {
-            "x86" { @("objs/Win32/Release/freetype.lib", "objs/Release/freetype.lib") }
-            "x64" { @("objs/x64/Release/freetype.lib", "objs/AMD64/Release/freetype.lib") }
+            "x86" {
+              @("objs/Win32/Release/freetype.lib", "objs/Release/freetype.lib", "objs/x64/Release/freetype.lib", "objs/AMD64/Release/freetype.lib")
+            }
+            "x64" {
+              @("objs/x64/Release/freetype.lib", "objs/AMD64/Release/freetype.lib", "objs/Win32/Release/freetype.lib", "objs/Release/freetype.lib")
+            }
             "ARM64" { @("objs/ARM64/Release/freetype.lib") }
             default { @("objs/x64/Release/freetype.lib", "objs/AMD64/Release/freetype.lib") }
           }
-          
+
           $picked = $null
+          Write-Host "FreeType 라이브러리 검색 중..." -ForegroundColor Cyan
           foreach ($outPath in $platformOutputs) {
             $fullPath = Join-Path $ftDir $outPath
-            if (Test-Path $fullPath) { $picked = $fullPath; break }
+            if (Test-Path $fullPath) {
+              $picked = $fullPath
+              Write-Host "  찾음: $outPath" -ForegroundColor Green
+              break
+            } else {
+              Write-Host "  없음: $outPath" -ForegroundColor Gray
+            }
           }
-          
+
           # 플랫폼별 경로에서 찾지 못한 경우 일반 검색
           if (-not $picked) {
+            Write-Host "플랫폼별 경로에서 찾지 못함, 전체 검색 시도..." -ForegroundColor Yellow
             $cand = Get-ChildItem -Path $ftDir -Recurse -Include freetype.lib -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($cand) { $picked = $cand.FullName }
+            if ($cand) {
+              $picked = $cand.FullName
+              Write-Host "  일반 검색으로 찾음: $picked" -ForegroundColor Green
+            }
           }
           if ($picked) {
-            Copy-Item $picked (Join-Path $PWD "lib/freetype.lib") -Force
-            Write-Host "freetype.lib 생성: $picked -> lib/freetype.lib" -ForegroundColor Green
+            # 플랫폼별 라이브러리 이름 결정
+            $freetypeLibName = switch ("${{ matrix.platform }}") {
+              "x86" { "freetype.lib" }
+              "x64" { "freetype64.lib" }
+              "ARM64" { "freetype_arm64.lib" }
+              default { "freetype.lib" }
+            }
+            Copy-Item $picked (Join-Path $PWD "lib/$freetypeLibName") -Force
+            Write-Host "$freetypeLibName 복사 완료: lib/$freetypeLibName" -ForegroundColor Green
           } else {
-            Write-Host "경고: freetype.lib 산출물 찾기 실패" -ForegroundColor Yellow
+            Write-Host "경고: freetype.lib 산출물 찾기 실패" -ForegroundColor Red
           }
         } else {
           Write-Host "경고: FreeType VS 솔루션 파일을 찾을 수 없습니다: $ftSln" -ForegroundColor Yellow
@@ -171,94 +232,105 @@ jobs:
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         .\scripts\build-modern-dependencies.ps1 -Platform ${{ matrix.platform }} -Configuration Release
         echo "CMAKE_TOOLCHAIN_FILE=$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
-        if (Test-Path "$PWD\lib\detours.lib") { Write-Host "lib\\detours.lib 확인됨" -ForegroundColor Green } else { Write-Host "경고: lib\\detours.lib 없음" -ForegroundColor Yellow }
+        # Detours 라이브러리 복사 (vcpkg에서)
+        $detoursLibName = switch ("${{ matrix.platform }}") {
+          "x86" { "detours.lib" }
+          "x64" { "detours.lib" }
+          "ARM64" { "detours.lib" }
+          default { "detours.lib" }
+        }
+        $vcpkgDetoursPath = "$PWD\vcpkg\installed\$env:VCPKG_TARGET_TRIPLET\lib\$detoursLibName"
+        if (Test-Path $vcpkgDetoursPath) {
+          Copy-Item $vcpkgDetoursPath "$PWD\lib\$detoursLibName" -Force
+          Write-Host "lib\\$detoursLibName 복사 완료" -ForegroundColor Green
+        } else {
+          Write-Host "경고: $detoursLibName 없음 (vcpkg에서 찾을 수 없음)" -ForegroundColor Yellow
+        }
         # 플랫폼별 vcpkg fallback
         $triplet = $env:VCPKG_TARGET_TRIPLET
         $vcpkgFreetypePath = "$PWD\vcpkg\installed\$triplet\lib\freetype.lib"
-        if (!(Test-Path "$PWD\lib\freetype.lib") -and (Test-Path $vcpkgFreetypePath)) { 
-          Copy-Item $vcpkgFreetypePath "$PWD\lib\freetype.lib" -Force
-          Write-Host "freetype.lib 복사 완료(vcpkg $triplet)" -ForegroundColor Green 
-        } else { 
-          if (!(Test-Path "$PWD\lib\freetype.lib")) { 
-            Write-Host "경고: freetype.lib 미발견 (fork/vcpkg 모두)" -ForegroundColor Yellow 
-          } 
+
+        # 플랫폼별 FreeType 라이브러리 이름 결정
+        $freetypeLibName = switch ("${{ matrix.platform }}") {
+          "x86" { "freetype.lib" }
+          "x64" { "freetype64.lib" }
+          "ARM64" { "freetype_arm64.lib" }
+          default { "freetype.lib" }
+        }
+
+        if (!(Test-Path "$PWD\lib\$freetypeLibName") -and (Test-Path $vcpkgFreetypePath)) {
+          Copy-Item $vcpkgFreetypePath "$PWD\lib\$freetypeLibName" -Force
+          Write-Host "$freetypeLibName 복사 완료(vcpkg $triplet)" -ForegroundColor Green
+        } else {
+          if (!(Test-Path "$PWD\lib\$freetypeLibName")) {
+            Write-Host "경고: $freetypeLibName 미발견 (fork/vcpkg 모두)" -ForegroundColor Yellow
+          }
         }
         dir lib | findstr detours || echo "lib 폴더 내용 나열 완료"
 
-    - name: Build IniParser and copy lib
+    - name: Setup IniParser from vcpkg
       run: |
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-        $inipDir = Join-Path $PWD "deps/iniparser"
-        if (!(Test-Path $inipDir)) {
-          git clone https://github.com/snowie2000/IniParser.git $inipDir
+
+        # 플랫폼별 라이브러리 이름 결정
+        $libSuffix = $env:LIB_SUFFIX
+        if (-not $libSuffix) {
+          $libSuffix = switch ("${{ matrix.platform }}") {
+            "x86" { "" }
+            "x64" { "64" }
+            "ARM64" { "_arm64" }
+            default { "64" }
+          }
         }
-        $sln = $null
-        $cands = @("IniParser.sln","src/IniParser.sln","IniParser/IniParser.sln")
-        foreach ($c in $cands) {
-          $p = Join-Path $inipDir $c
-          if (Test-Path $p) { $sln = $p; break }
-        }
-        if (-not $sln) {
-          $proj = Get-ChildItem -Path $inipDir -Recurse -Filter *.vcxproj -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($proj) { $sln = $proj.FullName } else { throw "IniParser 솔루션/프로젝트를 찾을 수 없습니다" }
-        }
-        # 플랫폼별 MSBuild 플랫폼 설정 (IniParser uses different naming)
-        $msbuildPlatform = switch ("${{ matrix.platform }}") {
-          "x86" { "x86" }
-          "x64" { "x64" }
-          "ARM64" { "ARM64" }
-          default { "x64" }
-        }
-        
-        # 플랫폼별 라이브러리 이름
-        $libName = switch ("${{ matrix.platform }}") {
-          "x86" { "iniparser.lib" }
-          "x64" { "iniparser64.lib" }
-          "ARM64" { "iniparser_arm64.lib" }
-          default { "iniparser64.lib" }
-        }
-        
-        $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
-        msbuild $sln -p:Configuration=Release -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:PlatformToolset=v143 -v:minimal
-        
-        # 산출물 위치/이름 자동 탐색 (대소문자/경로 다양성 대응)
-        $candidates = Get-ChildItem -Path $inipDir -Recurse -Include *.lib -ErrorAction SilentlyContinue
-        $picked = $null
-        
-        # 플랫폼별 경로 패턴으로 검색
-        $platformPattern = switch ("${{ matrix.platform }}") {
-          "x86" { "(Win32|x86).*Release" }
-          "x64" { "(x64|AMD64).*Release" }
-          "ARM64" { "ARM64.*Release" }
-          default { "(x64|AMD64).*Release" }
-        }
-        
-        foreach ($f in $candidates) {
-          if ($f.FullName -match "IniParser" -and $f.FullName -match $platformPattern) { $picked = $f.FullName; break }
-        }
-        if (-not $picked -and $candidates) { $picked = $candidates[0].FullName }
-        
-        if ($picked) {
-          Copy-Item $picked (Join-Path $PWD "lib/$libName") -Force
-          Write-Host "$libName 생성: $picked -> lib/$libName" -ForegroundColor Green
+        $libName = "iniparser$libSuffix.lib"
+
+        # vcpkg에서 제공하는 라이브러리 사용 (iniparser는 vcpkg에 추가됨)
+        $vcpkgLibPath = "$PWD\vcpkg\installed\$env:VCPKG_TARGET_TRIPLET\lib\iniparser.lib"
+        if (Test-Path $vcpkgLibPath) {
+          Copy-Item $vcpkgLibPath "$PWD\lib\$libName" -Force
+          Write-Host "vcpkg IniParser 라이브러리 복사 완료: $libName" -ForegroundColor Green
+
+          # 라이브러리 파일 확인
+          $destPath = "$PWD\lib\$libName"
+          if (Test-Path $destPath) {
+            $fileSize = (Get-Item $destPath).Length
+            Write-Host "IniParser 라이브러리 확인: $destPath ($fileSize bytes)" -ForegroundColor Cyan
+          }
         } else {
-          Write-Host "경고: IniParser 산출물(.lib)을 찾지 못했습니다" -ForegroundColor Yellow
+          Write-Host "오류: vcpkg에서 iniparser.lib를 찾을 수 없습니다." -ForegroundColor Red
+          Write-Host "vcpkg 설치된 라이브러리 목록:" -ForegroundColor Yellow
+          if (Test-Path "$PWD\vcpkg\installed\$env:VCPKG_TARGET_TRIPLET\lib") {
+            Get-ChildItem "$PWD\vcpkg\installed\$env:VCPKG_TARGET_TRIPLET\lib" -Filter *.lib | ForEach-Object {
+              Write-Host "  - $($_.Name)" -ForegroundColor Gray
+            }
+          }
+          Write-Host "참고: vcpkg.json에 iniparser가 추가되었는지 확인하세요." -ForegroundColor Yellow
+          exit 1
         }
 
     - name: Build MacType (Rel+Detours)
       run: |
-        # 플랫폼별 MSBuild 플랫폼 설정
-        $msbuildPlatform = switch ("${{ matrix.platform }}") {
-          "x86" { "Win32" }
-          "x64" { "x64" }
-          "ARM64" { "ARM64" }
-          default { "x64" }
+        # 플랫폼별 MSBuild 플랫폼 설정 (환경변수에서 가져오기)
+        $msbuildPlatform = $env:MSBUILD_PLATFORM
+        if (-not $msbuildPlatform) {
+          $msbuildPlatform = switch ("${{ matrix.platform }}") {
+            "x86" { "Win32" }
+            "x64" { "x64" }
+            "ARM64" { "ARM64" }
+            default { "x64" }
+          }
         }
         
         $sdkVersion = $env:WINDOWS_SDK_VERSION; if (-not $sdkVersion) { $sdkVersion = "10.0.26100.0" }
         echo "사용할 Windows SDK 버전: $sdkVersion"
         echo "빌드 플랫폼: ${{ matrix.platform }} (MSBuild: $msbuildPlatform)"
-        
+        echo "vcpkg triplet: $env:VCPKG_TARGET_TRIPLET"
+        echo "lib 폴더 내용 확인:"
+        Get-ChildItem lib -Filter *.lib -ErrorAction SilentlyContinue | ForEach-Object {
+          echo "  - $($_.Name)"
+        }
+
+        Write-Host "MacType 빌드 시작: 플랫폼=$msbuildPlatform, 구성=Rel+Detours" -ForegroundColor Green
         msbuild ${{ env.SOLUTION_FILE_PATH }} -p:Configuration="Rel+Detours" -p:Platform=$msbuildPlatform -p:WindowsTargetPlatformVersion=$sdkVersion -p:UseMultiToolTask=true -p:EnforceProcessCountAcrossBuilds=true /v:n /fl "/flp:logfile=msbuild-RelDetours-${{ matrix.platform }}.log;verbosity=normal"
 
     - name: Upload build artifacts
