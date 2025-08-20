@@ -24,7 +24,7 @@
     },
     {
       "name": "iniparser",
-      "version>=": "4.1"
+      "version>=": "2020-04-06#5"
     }
   ],
   "overrides": [
