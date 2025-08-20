@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "settings.h"
 
 #include <windows.h>
 #include <tchar.h>
