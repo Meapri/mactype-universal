@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "settings.h"
+#include "override.h"
 
 #include <windows.h>
 #include <tchar.h>
