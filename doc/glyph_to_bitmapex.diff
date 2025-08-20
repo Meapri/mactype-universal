@@ -49,8 +49,7 @@
 +	FT_ZERO(&dummy_internal);
 +	dummy.internal = &dummy_internal;
 +	dummy.library = library;
-+	dummy.format = clazz->glyph_format;
-+	
++		dummy.format = clazz->glyph_format;+	
 +	if (loadcolor) {
 +		dummy_internal.load_flags |= FT_LOAD_COLOR;
 +		dummy.glyph_index = glyphindex;
