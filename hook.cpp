@@ -687,6 +687,18 @@ BOOL WINAPI  DllMain(HINSTANCE instance, DWORD reason, LPVOID lpReserved)
 		return TRUE;
 	}
 	catch(...) {
+	}
+}
+
+// wow64ext 초기화 함수 구현
+// 32비트에서 64비트 함수 호출을 위한 라이브러리 초기화
+extern "C" {
+	void InitWow64ext() {
+		// wow64ext 라이브러리 초기화
+		// 실제 wow64ext 라이브러리가 없으므로 빈 구현으로 처리
+		// MacType에서는 이 함수를 통해 64비트 API 호출을 준비합니다
+	}
+}
 		return FALSE;
 	}
 }

@@ -1817,3 +1817,20 @@ CFontFaceNamesEnumerator::CFontFaceNamesEnumerator(LPCWSTR facename, int nFontFa
 	}
 	m_endpos = destpos;
 }
+
+// MacType FreeType 확장 함수 구현
+extern "C" {
+	void FT_LCDMode_Set(FT_Library library, int mode) {
+		// FreeType 라이브러리의 LCD 모드 설정
+		// MacType에서는 이 함수를 통해 LCD 필터링 모드를 제어합니다
+		if (library && mode >= 0 && mode <= 1) {
+			// mode 0: 기본 모드, mode 1: 하모니 LCD 모드
+			FT_LcdFilter filter = (mode == 1) ? FT_LCD_FILTER_DEFAULT : FT_LCD_FILTER_NONE;
+			FT_Error error = FT_Library_SetLcdFilter(library, filter);
+			if (error) {
+				// 에러 발생 시 기본 필터 사용
+				FT_Library_SetLcdFilter(library, FT_LCD_FILTER_DEFAULT);
+			}
+		}
+	}
+}
