@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64, ARM64]
+        platform: [x86, x64]  # ARM64 임시 제외
 
     steps:
     - name: Checkout code
@@ -399,11 +399,7 @@ jobs:
         name: mactype-x64-builds
         path: artifacts/x64/
 
-    - name: Download ARM64 build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: mactype-ARM64-builds
-        path: artifacts/ARM64/
+
 
     - name: Install Inno Setup
       run: choco install innosetup --no-progress -y
@@ -415,7 +411,6 @@ jobs:
         # installer 디렉토리 생성
         New-Item -ItemType Directory -Force -Path installer/Files/x86 | Out-Null
         New-Item -ItemType Directory -Force -Path installer/Files/x64 | Out-Null
-        New-Item -ItemType Directory -Force -Path installer/Files/ARM64 | Out-Null
 
         # x86 파일들 복사
         if (Test-Path "artifacts/x86/Release") {
@@ -433,13 +428,7 @@ jobs:
           Copy-Item "artifacts/x64/Rel+Detours/*" "installer/Files/x64/" -Recurse -Force
         }
 
-        # ARM64 파일들 복사
-        if (Test-Path "artifacts/ARM64/Release") {
-          Copy-Item "artifacts/ARM64/Release/*" "installer/Files/ARM64/" -Recurse -Force
-        }
-        if (Test-Path "artifacts/ARM64/Rel+Detours") {
-          Copy-Item "artifacts/ARM64/Rel+Detours/*" "installer/Files/ARM64/" -Recurse -Force
-        }
+
 
         Write-Host "Installer 파일 구조 확인:" -ForegroundColor Cyan
         Get-ChildItem installer/Files -Recurse | Select-Object FullName

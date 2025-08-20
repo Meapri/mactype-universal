@@ -595,7 +595,7 @@
       <SupportUnloadOfDelayLoadedDLL>true</SupportUnloadOfDelayLoadedDLL>
       <TargetMachine>MachineX86</TargetMachine>
       <DelayLoadDLLs>easyhk32.dll</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <ImageHasSafeExceptionHandlers />
     </Link>
@@ -626,7 +626,7 @@
       <AdditionalDependencies>usp10.lib;dwrite.lib;detours.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Platform)'=='x64'">usp10.lib;dwrite.lib;detours.lib;freetype64.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Platform)'=='ARM64'">usp10.lib;dwrite.lib;detours.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>expfunc.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -637,7 +637,7 @@
       <TargetMachine>MachineX86</TargetMachine>
       <DelayLoadDLLs>
       </DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <ImageHasSafeExceptionHandlers>
       </ImageHasSafeExceptionHandlers>
@@ -677,7 +677,7 @@
       <TargetMachine>MachineX86</TargetMachine>
       <DelayLoadDLLs>
       </DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <ImageHasSafeExceptionHandlers>
       </ImageHasSafeExceptionHandlers>
@@ -717,7 +717,7 @@
       <SupportUnloadOfDelayLoadedDLL>true</SupportUnloadOfDelayLoadedDLL>
       <TargetMachine>MachineX86</TargetMachine>
       <DelayLoadDLLs>easyhk32.dll</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>
@@ -754,7 +754,7 @@
       <SupportUnloadOfDelayLoadedDLL>true</SupportUnloadOfDelayLoadedDLL>
       <TargetMachine>MachineX86</TargetMachine>
       <DelayLoadDLLs>easyhk32.dll</DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -821,7 +821,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>usp10.lib;detours.lib;freetype64.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <ModuleDefinitionFile>expfunc.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -832,7 +832,7 @@
       <TargetMachine>MachineX64</TargetMachine>
       <DelayLoadDLLs>
       </DelayLoadDLLs>
-      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;$(VCPKG_ROOT)\installed\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)lib;$(VCPKG_INSTALLED_DIR)\$(VCPKG_TARGET_TRIPLET)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <CETCompat>true</CETCompat>
     </Link>
   </ItemDefinitionGroup>
