@@ -202,9 +202,9 @@ jobs:
           $proj = Get-ChildItem -Path $inipDir -Recurse -Filter *.vcxproj -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($proj) { $sln = $proj.FullName } else { throw "IniParser 솔루션/프로젝트를 찾을 수 없습니다" }
         }
-        # 플랫폼별 MSBuild 플랫폼 설정
+        # 플랫폼별 MSBuild 플랫폼 설정 (IniParser uses different naming)
         $msbuildPlatform = switch ("${{ matrix.platform }}") {
-          "x86" { "Win32" }
+          "x86" { "x86" }
           "x64" { "x64" }
           "ARM64" { "ARM64" }
           default { "x64" }
