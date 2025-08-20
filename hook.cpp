@@ -699,7 +699,4 @@ extern "C" {
 		// MacType에서는 이 함수를 통해 64비트 API 호출을 준비합니다
 	}
 }
-		return FALSE;
-	}
-}
 //EOF
