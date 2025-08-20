@@ -1,9 +1,12 @@
-# MacType 종속성 빌드 스크립트
+# MacType 종속성 빌드 스크립트 (레거시 - 더 이상 사용되지 않음)
+# 주의: 이 스크립트는 iniparser를 사용하며, 현재는 build-modern-dependencies.ps1이 사용됨
+# iniparser는 완전히 제거되고 JSON 기반 설정 시스템으로 전환됨
+
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("x86", "x64")]
     [string]$Platform,
-    
+
     [Parameter(Mandatory=$false)]
     [string]$Configuration = "Release"
 )
@@ -11,6 +14,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "=== MacType 종속성 빌드 시작 (플랫폼: $Platform, 구성: $Configuration) ===" -ForegroundColor Green
+Write-Host "⚠️  주의: 이 스크립트는 더 이상 사용되지 않습니다. build-modern-dependencies.ps1을 사용하세요." -ForegroundColor Red
+Write-Host "⚠️  주의: iniparser가 제거되어 이 스크립트는 작동하지 않을 수 있습니다." -ForegroundColor Red
 
 # 디렉터리 생성
 $rootDir = Get-Location

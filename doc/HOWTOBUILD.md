@@ -30,9 +30,9 @@
 
         Set `FREETYPE_PATH` environment variable to root of freetype source.
 
-    - iniParser
+    - Configuration System
 
-        Build as iniparser.lib and iniparser64.lib. Set `INI_PARSER_PATH` environment variable to root of IniParser project.
+        MacType now uses JSON-based configuration system. No additional dependencies required.
 
     - wow64ext
 

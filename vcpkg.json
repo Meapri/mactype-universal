@@ -21,10 +21,6 @@
     {
       "name": "nlohmann-json",
       "version>=": "3.11.3"
-    },
-    {
-      "name": "iniparser",
-      "version>=": "2020-04-06#5"
     }
   ],
   "overrides": [

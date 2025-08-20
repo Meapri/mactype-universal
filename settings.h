@@ -146,19 +146,8 @@ public:
     }
 };
 
-#ifdef _WIN64
-#ifdef DEBUG
-#pragma comment (lib, "iniparser64_dbg.lib")
-#else
-#pragma comment (lib, "iniparser64.lib")
-#endif
-#else
-#ifdef DEBUG
-#pragma comment (lib, "iniparser_dbg.lib")
-#else
-#pragma comment (lib, "iniparser.lib")
-#endif
-#endif
+// IniParser 라이브러리 제거됨 - JSON 기반 설정 시스템으로 완전 전환
+// #pragma comment (lib, "iniparser.lib")
 
 #define MACTYPE_VERSION		20220712
 #define MAX_FONT_SETTINGS	16

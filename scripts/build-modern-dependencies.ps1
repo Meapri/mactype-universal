@@ -189,16 +189,7 @@ if (Test-Path $vcpkgIncludePath) {
 # 추가 의존성 빌드 (vcpkg에서 지원하지 않는 것들)
 Write-Host "추가 의존성 빌드 중..." -ForegroundColor Yellow
 
-# IniParser (C# 라이브러리이므로 별도 처리)
-$iniparserDir = Join-Path $depsDir "ini-parser"
-if (-not (Test-Path $iniparserDir)) {
-    Write-Host "INI 파서 다운로드 중..." -ForegroundColor Cyan
-    # GitHub Actions에서 인증 문제 우회를 위해 토큰 사용
-    git clone https://github.com/ndevilla/iniparser.git $iniparserDir
-}
-
-# INI 파서는 .NET/C# 라이브러리이므로 MacType에서 직접 사용하지 않을 수 있음
-# 대신 간단한 C++ INI 파서를 생성하거나 다른 대안 사용
+# IniParser 제거됨 - JSON 기반 설정 시스템으로 완전 전환
 
 # wow64ext (32비트에서만 필요)
 if ($Platform -eq "x86") {
@@ -230,47 +221,18 @@ if ($Platform -eq "x86") {
     Set-Location $rootDir
 }
 
-# IniParser 헤더 복사
-Write-Host "IniParser 헤더 복사 중..." -ForegroundColor Yellow
+# IniParser 헤더 복사 제거됨 - JSON 기반 설정 시스템으로 완전 전환
+Write-Host "JSON 기반 설정 시스템 사용 중..." -ForegroundColor Green
 $includeDir = Join-Path $depsDir "include"
 New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
 
-if (Test-Path $iniparserDir) {
-    # ndevilla/iniparser의 헤더 파일은 루트 디렉터리와 src 디렉터리에 있을 수 있음
-    $iniparserHeaders = @("iniparser.h", "dictionary.h")
-    $possibleDirs = @($iniparserDir, (Join-Path $iniparserDir "src"))
-    
-    foreach ($dir in $possibleDirs) {
-        if (Test-Path $dir) {
-            foreach ($header in $iniparserHeaders) {
-                $sourcePath = Join-Path $dir $header
-                if (Test-Path $sourcePath) {
-                    Copy-Item $sourcePath $includeDir -Force
-                    Write-Host "IniParser 헤더 복사: $header (from $dir)" -ForegroundColor Green
-                }
-            }
-        }
-    }
-    
-    # 헤더가 복사되었는지 확인
-    $copiedHeaders = @()
-    foreach ($header in $iniparserHeaders) {
-        $targetPath = Join-Path $includeDir $header
-        if (Test-Path $targetPath) {
-            $copiedHeaders += $header
-        }
-    }
-    
-    if ($copiedHeaders.Count -eq 0) {
-        Write-Host "경고: IniParser 헤더를 찾을 수 없습니다. 디렉터리 구조를 확인합니다..." -ForegroundColor Yellow
-        Get-ChildItem $iniparserDir -Recurse -Name "*.h" | Select-Object -First 10 | ForEach-Object {
-            Write-Host "  발견된 헤더: $_" -ForegroundColor Cyan
-        }
-    } else {
-        Write-Host "IniParser 헤더 복사 완료: $($copiedHeaders -join ', ')" -ForegroundColor Green
-    }
+if (Test-Path $vcpkgIncludeDir) {
+    # vcpkg에서 제공하는 헤더 파일만 복사 (FreeType, Detours 등)
+    Write-Host "vcpkg 헤더 파일 복사 중..." -ForegroundColor Green
+    Copy-Item "$vcpkgIncludeDir/*" $includeDir -Recurse -Force
+    Write-Host "vcpkg 헤더 파일 복사 완료" -ForegroundColor Green
 } else {
-    Write-Host "경고: IniParser 디렉터리를 찾을 수 없습니다: $iniparserDir" -ForegroundColor Yellow
+    Write-Host "vcpkg include 디렉터리를 찾을 수 없습니다" -ForegroundColor Yellow
 }
 
 Write-Host "=== 현대적 종속성 빌드 완료 ===" -ForegroundColor Green
