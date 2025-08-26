@@ -205,18 +205,23 @@ jobs:
         mkdir build-manager
         cd build-manager
 
-        # Universal Windows App 구성 (유니버셜 빌드)
+        # Universal Windows App 구성 (Visual Studio generator 사용)
         Write-Host "Configuring Universal Windows App (x64 + ARM64)..." -ForegroundColor Cyan
-        cmake .. `
-          -G Ninja `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_GENERATOR_PLATFORM=x64 `
-          -DCMAKE_TOOLCHAIN_FILE="$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake" `
-          -DVCPKG_TARGET_TRIPLET=x64-windows `
-          -DBUILD_MODERN_MANAGER=ON `
-          -DCMAKE_CXX_FLAGS="/MP /O2" `
-          -DCMAKE_SYSTEM_NAME=WindowsStore `
-          -DCMAKE_SYSTEM_VERSION=10.0
+
+        # Ninja 대신 Visual Studio generator 사용 (platform 지원)
+        $cmakeArgs = @(
+            "..",
+            "-G", "Visual Studio 17 2022",
+            "-A", "x64",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "-DVCPKG_TARGET_TRIPLET=x64-windows",
+            "-DBUILD_MODERN_MANAGER=ON",
+            "-DCMAKE_SYSTEM_NAME=WindowsStore",
+            "-DCMAKE_SYSTEM_VERSION=10.0"
+        )
+
+        & cmake @cmakeArgs
 
         # Universal Windows Platform 앱 빌드
         Write-Host "Building Universal MacType Manager (x64 + ARM64)..." -ForegroundColor Cyan
@@ -297,9 +302,18 @@ jobs:
 
     - name: Restore environment
       run: |
-        Write-Host "Restoring build environment..." -ForegroundColor Cyan
-        echo "VCPKG_ROOT=${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_ENV
-        echo "${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_PATH
+        Write-Host "Restoring build environment for ${{ matrix.platform }}..." -ForegroundColor Cyan
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        if (Test-Path $vcpkgRoot) {
+            echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+            echo "$vcpkgRoot" >> $env:GITHUB_PATH
+            Write-Host "vcpkg root restored: $vcpkgRoot" -ForegroundColor Green
+        } else {
+            Write-Host "vcpkg root not found: $vcpkgRoot" -ForegroundColor Red
+            Write-Host "Current directory contents:" -ForegroundColor Yellow
+            Get-ChildItem -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            exit 1
+        }
 
     - name: Install platform-specific dependencies
       run: |
@@ -328,7 +342,18 @@ jobs:
             $installArgs += "--only-downloads"
         }
 
-        & ".\vcpkg\vcpkg.exe" @installArgs
+        # vcpkg 경로 확인 및 실행
+        $vcpkgPath = ".\vcpkg\vcpkg.exe"
+        if (Test-Path $vcpkgPath) {
+            & $vcpkgPath @installArgs
+        } else {
+            Write-Host "vcpkg.exe not found at $vcpkgPath" -ForegroundColor Red
+            Write-Host "Available files in vcpkg directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path ".\vcpkg" -Name | ForEach-Object {
+                Write-Host "  $_" -ForegroundColor Gray
+            }
+            exit 1
+        }
 
         Write-Host "Dependencies for ${{ matrix.platform }} installed successfully" -ForegroundColor Green
 
