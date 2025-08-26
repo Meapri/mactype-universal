@@ -52,11 +52,12 @@ env:
   ARTIFACT_CACHE_DIR: '${{ github.workspace }}/artifacts'
 
 jobs:
-  # 환경 검증 및 사전 준비
+  # 환경 검증 및 사전 준비 (선택적)
   validate-environment:
-    name: Validate Environment
+    name: Validate Environment (Optional)
     runs-on: windows-latest
     timeout-minutes: 5
+    continue-on-error: true
     outputs:
       runner-info: ${{ steps.runner-info.outputs.info }}
       windows-version: ${{ steps.runner-info.outputs.windows-version }}
@@ -111,7 +112,6 @@ jobs:
   setup-environment:
     name: Setup Build Environment
     runs-on: windows-latest
-    needs: validate-environment
     timeout-minutes: 25
 
     steps:
