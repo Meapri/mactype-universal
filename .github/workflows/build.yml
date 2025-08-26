@@ -117,8 +117,9 @@ jobs:
         # vcpkg로 의존성 설치 (매니페스트 모드)
         .\vcpkg\vcpkg.exe install --triplet $triplet
 
-        # vcpkg 설치 확인
+        # vcpkg 설치 확인 및 목록 출력
         Write-Host "vcpkg 의존성 설치 완료" -ForegroundColor Green
+        .\vcpkg\vcpkg.exe list --triplet $triplet
 
     - name: Configure CMake
       run: |
@@ -138,7 +139,7 @@ jobs:
         }
 
         Write-Host "Using vcpkg toolchain: $vcpkgToolchain"
-        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }}
+        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }} -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed"
 
     - name: Build with CMake
       run: |

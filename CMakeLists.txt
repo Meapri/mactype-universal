@@ -84,17 +84,32 @@ if(ENABLE_COVERAGE)
     endif()
 endif()
 
-# Find required packages (Windows-specific)
-find_package(FreeType REQUIRED)
-if(NOT FreeType_FOUND)
+# Find FreeType manually (vcpkg compatibility)
+find_path(FREETYPE_INCLUDE_DIR ft2build.h
+    PATHS ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/freetype2
+          ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
+    NO_DEFAULT_PATH
+)
+
+find_library(FREETYPE_LIBRARY
+    NAMES freetype.lib freetype
+    PATHS ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+    NO_DEFAULT_PATH
+)
+
+if(NOT FREETYPE_INCLUDE_DIR OR NOT FREETYPE_LIBRARY)
     message(FATAL_ERROR "FreeType not found. Please check vcpkg installation.")
 endif()
 
-# Debug FreeType targets
-message(STATUS "FreeType found: ${FreeType_FOUND}")
-message(STATUS "FreeType version: ${FreeType_VERSION}")
-message(STATUS "FreeType libraries: ${FreeType_LIBRARIES}")
-message(STATUS "FreeType include dirs: ${FreeType_INCLUDE_DIRS}")
+# Create FreeType target
+add_library(FreeType::FreeType UNKNOWN IMPORTED)
+set_target_properties(FreeType::FreeType PROPERTIES
+    IMPORTED_LOCATION "${FREETYPE_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIR}"
+)
+
+message(STATUS "FreeType found: ${FREETYPE_LIBRARY}")
+message(STATUS "FreeType include: ${FREETYPE_INCLUDE_DIR}")
 
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
@@ -158,12 +173,15 @@ if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
     set(HAS_DETOURS FALSE)
 else()
     set(HAS_DETOURS TRUE)
-endif()
+    message(STATUS "Detours found: ${DETOURS_LIBRARY}")
 
-# Create interface library for detours
-add_library(detours INTERFACE)
-target_include_directories(detours INTERFACE ${DETOURS_INCLUDE_DIR})
-target_link_libraries(detours INTERFACE ${DETOURS_LIBRARY})
+    # Create imported library for detours
+    add_library(detours STATIC IMPORTED)
+    set_target_properties(detours PROPERTIES
+        IMPORTED_LOCATION "${DETOURS_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${DETOURS_INCLUDE_DIR}"
+    )
+endif()
 
 # Note: Brotli is included statically in FreeType when brotli feature is enabled
 # No separate brotli linking needed
@@ -365,19 +383,11 @@ if(WIN32)
     target_link_libraries(MacType.Loader PRIVATE mactype)
 endif()
 
-# Install targets - only export mactype, not detours
+# Install targets - do not export mactype to avoid detours dependency issues
 install(TARGETS mactype
-    EXPORT MacTypeTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-
-# Install detours as separate component (not exported)
-install(TARGETS detours
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
