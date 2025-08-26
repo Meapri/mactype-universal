@@ -82,7 +82,124 @@ Provides encrypted inter-process communication:
 - Heartbeat and connection monitoring
 
 ### 4. Modern Injector (`modern_injector`)
-Performs safe DLL injection without wow64ext:
+Performs safe DLL injection without wow64ext.
+
+## Modern GUI Applications Plan
+
+### MacWiz → Modern Setup Wizard (WinUI 3)
+**Current Status**: Legacy Win32 installer wizard
+**Target**: Modern native Windows setup experience
+
+#### Key Features:
+- **WinUI 3 Native UI**: Fluent Design with Mica/Acrylic backdrops
+- **ARM64 Support**: Native ARM64 installation and configuration
+- **Modern Package Management**: MSIX integration and auto-updates
+- **Accessibility**: Narrator support and keyboard navigation
+- **Dark Mode**: System theme integration
+
+#### Architecture:
+- **MVVM Pattern**: ViewModel-based data binding
+- **JSON Configuration**: Modern settings format
+- **Async Operations**: Non-blocking installation process
+- **Progress Visualization**: Modern progress indicators
+- **Error Recovery**: Intelligent rollback mechanisms
+
+#### User Experience:
+- **Welcome Screen**: Feature overview and system compatibility check
+- **Installation Options**: Custom installation paths and component selection
+- **Configuration Wizard**: Profile setup and font preferences
+- **Service Integration**: Automatic service registration
+- **Completion**: Quick start guide and troubleshooting tips
+
+### MacTuner → Modern Settings App (WinUI 3)
+**Current Status**: Legacy Win32 settings dialog
+**Target**: Modern native Windows settings experience
+
+#### Key Features:
+- **Real-time Preview**: Live font rendering preview
+- **Profile Management**: JSON-based profile system
+- **Font Analysis**: Advanced font metrics and compatibility
+- **Performance Monitoring**: System impact visualization
+- **Batch Operations**: Bulk font configuration
+
+#### Architecture:
+- **Adaptive Layout**: Responsive design for all screen sizes
+- **Settings Sync**: Cloud synchronization (optional)
+- **Plugin System**: Extensible font processing modules
+- **Advanced Diagnostics**: System font analysis tools
+- **Export/Import**: Configuration backup and sharing
+
+#### Core Modules:
+1. **Font Scanner**: System font inventory and analysis
+2. **Profile Editor**: Visual profile creation and editing
+3. **Performance Monitor**: Real-time rendering statistics
+4. **Compatibility Checker**: Application-specific font testing
+5. **Backup Manager**: Configuration versioning and recovery
+
+### Implementation Roadmap
+
+#### Phase 1: Foundation (4-6 weeks)
+- WinUI 3 project setup and basic architecture
+- MVVM framework implementation
+- JSON configuration system
+- Basic UI components development
+
+#### Phase 2: Core Features (6-8 weeks)
+- Installation wizard implementation
+- Settings app core functionality
+- Font analysis and preview systems
+- ARM64 compatibility and testing
+
+#### Phase 3: Advanced Features (4-6 weeks)
+- Cloud synchronization
+- Advanced diagnostics
+- Plugin system implementation
+- Performance optimization
+
+#### Phase 4: Testing & Polish (4-6 weeks)
+- Comprehensive testing across platforms
+- User experience refinement
+- Documentation and localization
+- Beta testing and feedback integration
+
+### Technical Specifications
+
+#### WinUI 3 Requirements:
+- Windows 10 version 1903+ or Windows 11
+- Windows App SDK 1.3+
+- C++/WinRT for native interop
+- Windows Runtime APIs
+
+#### Architecture Principles:
+- **Modern Async**: All I/O operations asynchronous
+- **Error Boundaries**: Comprehensive error handling
+- **Accessibility First**: WCAG 2.1 AA compliance
+- **Performance Focused**: <100ms UI responsiveness
+- **Security Conscious**: Least privilege execution
+
+### Migration Strategy
+
+#### Phase 1: Coexistence
+- Legacy and modern apps can coexist
+- Gradual migration path for users
+- Backward compatibility maintained
+
+#### Phase 2: Feature Parity
+- Modern app reaches feature parity with legacy
+- User testing and feedback integration
+- Performance benchmarking vs legacy
+
+#### Phase 3: Migration Tools
+- Automatic settings migration
+- User preference transfer
+- Uninstall guidance for legacy
+
+#### Phase 4: Deprecation
+- Legacy app marked as deprecated
+- Clear migration path provided
+- Support timeline communicated
+
+This modernization plan ensures MacType remains competitive in the modern Windows ecosystem while providing users with the best possible experience across all supported platforms.
 - Multiple injection methods (LoadLibrary, Manual Map, Reflective)
 - DLL signature verification
 - Memory integrity checks
