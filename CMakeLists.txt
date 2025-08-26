@@ -375,7 +375,11 @@ install(FILES
 
 # Tests
 if(BUILD_TESTING AND ENABLE_TESTS)
-    find_package(GTest CONFIG REQUIRED)
+    find_package(GTest CONFIG QUIET)
+    if(NOT GTest_FOUND)
+        message(WARNING "Google Test not found. Install with: vcpkg install gtest --feature=test")
+        set(ENABLE_TESTS OFF CACHE BOOL "Enable tests" FORCE)
+    endif()
 
     add_executable(mactype_tests ${MAC_TYPE_TEST_SOURCES})
 

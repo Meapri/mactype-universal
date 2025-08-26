@@ -28,7 +28,8 @@
     "zlib",
     "libpng",
     "brotli",
-    "bzip2"
+    "bzip2",
+    "gtest"
   ],
   "overrides": [
     {
@@ -40,7 +41,6 @@
     "test": {
       "description": "Build tests",
       "dependencies": [
-        "gtest",
         "benchmark"
       ]
     },
