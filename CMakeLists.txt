@@ -88,7 +88,15 @@ endif()
 find_package(FreeType REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
-find_package(Brotli REQUIRED)
+# Brotli - vcpkg에서 제공하는 방식으로 찾기
+find_package(unofficial-brotli QUIET)
+if(NOT unofficial-brotli_FOUND)
+    find_package(Brotli QUIET)
+    if(NOT Brotli_FOUND)
+        message(WARNING "Brotli not found - some FreeType features may be disabled")
+        set(Brotli_FOUND FALSE)
+    endif()
+endif()
 find_package(BZip2 REQUIRED)
 find_package(detours REQUIRED)  # Windows Detours hooking library
 
@@ -235,7 +243,8 @@ target_link_libraries(mactype PUBLIC
     FreeType::FreeType
     ZLIB::ZLIB
     PNG::PNG
-    Brotli::Brotli
+    $<$<TARGET_EXISTS:Brotli::Brotli>:Brotli::Brotli>
+    $<$<TARGET_EXISTS:unofficial::brotli::brotli>:unofficial::brotli::brotli>
     BZip2::BZip2
     nlohmann_json::nlohmann_json
     detours::detours
