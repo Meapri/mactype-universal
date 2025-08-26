@@ -27,7 +27,7 @@
     },
     "zlib",
     "libpng",
-    "unofficial-brotli",
+    "brotli",
     "bzip2"
   ],
   "overrides": [

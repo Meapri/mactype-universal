@@ -88,17 +88,11 @@ endif()
 find_package(FreeType REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
-# Brotli - vcpkg에서 제공하는 방식으로 찾기
-find_package(unofficial-brotli QUIET)
-if(NOT unofficial-brotli_FOUND)
-    find_package(Brotli QUIET)
-    if(NOT Brotli_FOUND)
-        message(WARNING "Brotli not found - some FreeType features may be disabled")
-        set(Brotli_FOUND FALSE)
-    endif()
-endif()
 find_package(BZip2 REQUIRED)
 find_package(detours REQUIRED)  # Windows Detours hooking library
+
+# Note: Brotli is included statically in FreeType when brotli feature is enabled
+# No separate brotli linking needed
 
 # Find nlohmann_json for modern JSON handling
 find_package(nlohmann_json REQUIRED)
@@ -243,8 +237,6 @@ target_link_libraries(mactype PUBLIC
     FreeType::FreeType
     ZLIB::ZLIB
     PNG::PNG
-    $<$<TARGET_EXISTS:Brotli::Brotli>:Brotli::Brotli>
-    $<$<TARGET_EXISTS:unofficial::brotli::brotli>:unofficial::brotli::brotli>
     BZip2::BZip2
     nlohmann_json::nlohmann_json
     detours::detours
@@ -441,9 +433,9 @@ message(STATUS "Dependencies:")
 message(STATUS "  FreeType: ${FreeType_FOUND} (${FreeType_VERSION})")
 message(STATUS "  ZLIB: ${ZLIB_FOUND}")
 message(STATUS "  PNG: ${PNG_FOUND}")
-message(STATUS "  Brotli: ${Brotli_FOUND}")
 message(STATUS "  BZip2: ${BZip2_FOUND}")
 message(STATUS "  Detours: ${detours_FOUND}")
+message(STATUS "  Note: Brotli is included statically in FreeType (brotli feature enabled)")
 message(STATUS "  nlohmann_json: ${nlohmann_json_FOUND}")
 message(STATUS "")
 message(STATUS "Note: MacType is Windows-only software that hooks GDI/DirectWrite APIs")
