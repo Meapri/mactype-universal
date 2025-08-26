@@ -105,11 +105,6 @@ jobs:
     runs-on: windows-latest
     needs: validate-environment
     timeout-minutes: 25
-    outputs:
-      vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
-      cmake-version: ${{ steps.setup-cmake.outputs.cmake-version }}
-      setup-duration: ${{ steps.setup-complete.outputs.duration }}
-      setup-time: ${{ steps.setup-complete.outputs.setup-time }}
 
     steps:
     - name: Checkout code
@@ -323,10 +318,9 @@ jobs:
         $vcpkgRoot = (Get-Location).Path
         Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
 
-        # Set environment variables
+        # Set environment variables for all jobs
         echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
         echo "$vcpkgRoot" >> $env:GITHUB_PATH
-        echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
 
         # Verify vcpkg installation with full path
         $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
@@ -387,69 +381,6 @@ jobs:
 
         Write-Host "Common dependencies pre-downloaded" -ForegroundColor Green
 
-    - name: Complete setup
-      id: setup-complete
-      run: |
-        Write-Host "=== Completing environment setup ===" -ForegroundColor Green
-
-        # 간단하고 확실한 검증 방식
-        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
-
-        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
-          Write-Host "ERROR: vcpkg-root is empty" -ForegroundColor Red
-          Write-Host "::error title=vcpkg-root empty::The vcpkg-root output is empty"
-          exit 1
-        }
-
-        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
-
-        if (!(Test-Path $vcpkgExePath)) {
-          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Red
-          Write-Host "::error title=vcpkg.exe not found::vcpkg.exe not found at expected location"
-          exit 1
-        }
-
-        # 기본 도구 확인 (실패해도 계속 진행)
-        $cmakePath = $null
-        $ninjaPath = $null
-
-        try {
-          $cmakePath = (Get-Command cmake -ErrorAction Stop).Source
-          Write-Host "✓ CMake found: $cmakePath" -ForegroundColor Green
-        }
-        catch {
-          Write-Host "⚠ CMake not found, but continuing" -ForegroundColor Yellow
-        }
-
-        try {
-          $ninjaPath = (Get-Command ninja -ErrorAction Stop).Source
-          Write-Host "✓ Ninja found: $ninjaPath" -ForegroundColor Green
-        }
-        catch {
-          Write-Host "⚠ Ninja not found, but continuing" -ForegroundColor Yellow
-        }
-
-        # 시간 기록
-        $currentTime = Get-Date
-        $setupTime = $currentTime.ToString("o")
-        $duration = [math]::Round((Get-Date - $currentTime).TotalSeconds, 2)
-
-        # Output 설정 (가장 간단한 방식)
-        $env:GITHUB_OUTPUT | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-        echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
-        echo "duration=$duration" >> $env:GITHUB_OUTPUT
-
-        Write-Host "Environment setup completed successfully" -ForegroundColor Green
-        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
-        Write-Host "vcpkg executable: $vcpkgExePath" -ForegroundColor Cyan
-        Write-Host "Setup duration: $duration seconds" -ForegroundColor Cyan
-
-        # 최종 검증
-        Write-Host "Final verification:" -ForegroundColor Cyan
-        Write-Host "  ✓ vcpkg.exe exists: $(Test-Path $vcpkgExePath)" -ForegroundColor Green
-        Write-Host "  ✓ CMake available: $(if ($cmakePath) { 'Yes' } else { 'No' })" -ForegroundColor Green
-        Write-Host "  ✓ Ninja available: $(if ($ninjaPath) { 'Yes' } else { 'No' })" -ForegroundColor Green
-
         Write-Host "Environment setup completed successfully!" -ForegroundColor Green
 
   # Universal Manager 빌드 (x64 + ARM64 지원)
@@ -472,12 +403,8 @@ jobs:
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-        # Restore vcpkg environment
-        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
-        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
-        echo "$vcpkgRoot" >> $env:GITHUB_PATH
-
-        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+        # Use vcpkg environment from setup-environment
+        Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Cyan
 
         # Create build directory
         if (Test-Path "build-manager") {
@@ -493,7 +420,7 @@ jobs:
         cd build-manager
 
         # Verify vcpkg toolchain
-        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        $vcpkgRoot = $env:VCPKG_ROOT
         $vcpkgToolchain = "$vcpkgRoot/scripts/buildsystems/vcpkg.cmake"
 
         if (!(Test-Path $vcpkgToolchain)) {
@@ -624,19 +551,15 @@ jobs:
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-        # Restore vcpkg environment
-        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
-        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
-        echo "$vcpkgRoot" >> $env:GITHUB_PATH
-
-        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+        # Use vcpkg environment from setup-environment
+        Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Cyan
 
     - name: Install platform dependencies
       run: |
         Write-Host "=== Installing Multi-Platform Dependencies ===" -ForegroundColor Green
 
         # vcpkg 경로 설정
-        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        $vcpkgRoot = $env:VCPKG_ROOT
         $vcpkgExe = "$vcpkgRoot/vcpkg.exe"
 
         if (!(Test-Path $vcpkgExe)) {
@@ -694,7 +617,7 @@ jobs:
           cd $buildDir
 
           # vcpkg 경로 설정
-          $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+          $vcpkgRoot = $env:VCPKG_ROOT
           $vcpkgToolchain = "$vcpkgRoot/scripts/buildsystems/vcpkg.cmake"
 
           # 플랫폼별 CMake 구성
