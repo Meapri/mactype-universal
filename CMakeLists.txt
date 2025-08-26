@@ -430,19 +430,39 @@ endif()
 
 # Benchmarks
 if(ENABLE_TESTS)
-    find_package(benchmark CONFIG REQUIRED)
+    find_package(benchmark CONFIG QUIET)
+    if(NOT benchmark_FOUND)
+        message(WARNING "Google Benchmark not found. Install with: vcpkg install benchmark --feature=test")
+        # 벤치마크 없이도 빌드 진행
+    endif()
 
-    set(BENCHMARK_SOURCES
-        benchmarks/bench_font_rendering.cpp
-        benchmarks/bench_cache.cpp
-    )
+    if(benchmark_FOUND)
+        set(BENCHMARK_SOURCES
+            benchmarks/bench_font_rendering.cpp
+            benchmarks/bench_cache.cpp
+        )
 
-    add_executable(mactype_benchmarks ${BENCHMARK_SOURCES})
-    target_link_libraries(mactype_benchmarks PRIVATE
-        mactype
-        benchmark::benchmark
-        benchmark::benchmark_main
-    )
+        # 벤치마크 소스 파일이 존재하는지 확인
+        set(EXISTING_BENCHMARK_SOURCES)
+        foreach(src ${BENCHMARK_SOURCES})
+            if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${src})
+                list(APPEND EXISTING_BENCHMARK_SOURCES ${src})
+            else()
+                message(WARNING "Benchmark source file not found: ${src}")
+            endif()
+        endforeach()
+
+        if(EXISTING_BENCHMARK_SOURCES)
+            add_executable(mactype_benchmarks ${EXISTING_BENCHMARK_SOURCES})
+            target_link_libraries(mactype_benchmarks PRIVATE
+                mactype
+                benchmark::benchmark
+                benchmark::benchmark_main
+            )
+        else()
+            message(WARNING "No benchmark source files found. Skipping benchmarks.")
+        endif()
+    endif()
 endif()
 
 # Documentation
