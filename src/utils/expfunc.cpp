@@ -13,17 +13,9 @@
 #include <locale>
 #include <VersionHelpers.h>
 
-// wow64ext는 x86 32비트에서만 사용 (ARM64에서는 불필요)
-#ifndef _WIN64
-#ifndef _M_ARM64
-#include "wow64ext.h"
-#ifdef DEBUG
-#pragma comment(lib, "wow64ext_dbg.lib")
-#else
-#pragma comment(lib, "wow64ext.lib")
-#endif
-#endif
-#endif
+// wow64ext는 모든 플랫폼에서 불필요 (각 플랫폼별 MacType이 해당 아키텍처 프로세스만 제어)
+// 32비트 MacType에서는 32비트 프로세스만, 64비트 MacType에서는 64비트 프로세스만 제어
+// #include "wow64ext.h"  // 완전히 제거됨
 
 EXTERN_C LRESULT CALLBACK GetMsgProc(int code, WPARAM wParam, LPARAM lParam)
 {
@@ -1287,42 +1279,15 @@ EXTERN_C BOOL WINAPI GdippInjectDLL(const PROCESS_INFORMATION* ppi)
 			bTryLoadDll64 = true;
 			GetEnvironmentVariable(L"MACTYPE_X64ADDR", NULL, 0);
 			if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
-#ifdef HAS_WOW64EXT
-				DWORD64 hNtdll = 0;
-				hNtdll = GetModuleHandle64(L"ntdll.dll");
-				if (hNtdll) {
-					DWORD64 pfnLdrAddr = GetProcAddress64(hNtdll, "LdrLoadDll");
-					if (pfnLdrAddr) {
-						dwLoaderOffset = (DWORD)(pfnLdrAddr - hNtdll);
-#else
-				// wow64ext not available, skip 64-bit DLL loading
+				// wow64ext 제거됨: 각 플랫폼별 MacType이 해당 아키텍처 프로세스만 제어
+				// 32비트 MacType에서는 32비트 프로세스만, 64비트 MacType에서는 64비트 프로세스만 제어
 				return FALSE;
-#endif
-					}
-				}
 			}
 		}
 
-#ifdef HAS_WOW64EXT
-		opcode_data local;
-		DWORD64 remote = VirtualAllocEx64(ppi->hProcess, NULL, sizeof(opcode_data), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-		if (!remote)
-			return false;
-		bool basmIniter = dwLoaderOffset ? local.init64From32(remote, ctx.Rip, dwLoaderOffset) : local.init64From32(remote, ctx.Rip);
-		if (!basmIniter	|| !WriteProcessMemory64(ppi->hProcess, remote, &local, sizeof(opcode_data), NULL)) {
-			VirtualFreeEx64(ppi->hProcess, remote, 0, MEM_RELEASE);
-			return false;
-		}
-
-		//FlushInstructionCache64(ppi->hProcess, remote, sizeof(opcode_data));
-		//FARPROC a=(FARPROC)remote;
-		//a();
-		ctx.Rip = (DWORD64)remote;
-		return !!SetThreadContext64(ppi->hThread, &ctx);
-#else
-		// wow64ext not available, cannot inject 64-bit code
+		// wow64ext 제거됨: 각 플랫폼별 MacType이 해당 아키텍처 프로세스만 제어
+		// 32비트 MacType에서는 32비트 프로세스만, 64비트 MacType에서는 64비트 프로세스만 제어
 		return false;
-#endif
 	}
 	else {
 		CONTEXT ctx = { 0 };

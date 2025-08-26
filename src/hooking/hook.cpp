@@ -30,12 +30,9 @@
 #include <psapi.h>
 #endif
 
-// wow64ext는 x86 32비트에서만 사용 (ARM64에서는 불필요)
-#ifndef _WIN64
-#ifndef _M_ARM64
-#include "wow64ext.h"
-#endif
-#endif
+// wow64ext는 모든 플랫폼에서 불필요 (각 플랫폼별 MacType이 해당 아키텍처 프로세스만 제어)
+// 32비트 MacType에서는 32비트 프로세스만, 64비트 MacType에서는 64비트 프로세스만 제어
+// #include "wow64ext.h"  // 완전히 제거됨
 
 #ifdef INFINALITY
 #include <freetype/ftenv.h>
