@@ -37,6 +37,47 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
+    - name: Setup Windows App SDK
+      run: |
+        Write-Host "=== Setting up Windows App SDK ===" -ForegroundColor Green
+
+        # Check if Windows App SDK is already installed
+        $sdkInstalled = $false
+        $possiblePaths = @(
+          "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
+          "${env:ProgramFiles}\Microsoft SDKs\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
+          "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe"
+        )
+
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            Write-Host "Windows App SDK found at: $path" -ForegroundColor Green
+            $sdkInstalled = $true
+            break
+          }
+        }
+
+        if (-not $sdkInstalled) {
+          Write-Host "Installing Windows App SDK..." -ForegroundColor Cyan
+
+          # Download Windows App Runtime installer
+          $installerUrl = "https://aka.ms/windowsappsdk/1.4/latest/windowsappruntimeinstall-x64.exe"
+          $installerPath = "$env:TEMP\WindowsAppRuntimeInstall.exe"
+
+          try {
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+            Write-Host "Downloaded Windows App Runtime installer" -ForegroundColor Green
+
+            # Install silently
+            Start-Process -FilePath $installerPath -ArgumentList "/silent", "/norestart" -Wait -NoNewWindow
+            Write-Host "Windows App SDK installed successfully" -ForegroundColor Green
+          }
+          catch {
+            Write-Host "Failed to install Windows App SDK: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Continuing with build - some features may be limited" -ForegroundColor Yellow
+          }
+        }
+
     - name: Verify Windows Environment
       run: |
         Write-Host "=== Windows Environment Verification ===" -ForegroundColor Green
