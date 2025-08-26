@@ -72,7 +72,8 @@ jobs:
         Write-Host "Windows Version: $windowsVersion" -ForegroundColor Cyan
 
         $cpuInfo = Get-WmiObject Win32_Processor
-        Write-Host "CPU: $($cpuInfo.Name)" -ForegroundColor Cyan
+        $cpuName = $cpuInfo.Name -replace '[^a-zA-Z0-9\s\-_]', ''  # 특수 문자 제거
+        Write-Host "CPU: $cpuName" -ForegroundColor Cyan
         Write-Host "Cores: $($cpuInfo.NumberOfCores)" -ForegroundColor Cyan
         Write-Host "Logical Processors: $($cpuInfo.NumberOfLogicalProcessors)" -ForegroundColor Cyan
 
@@ -84,16 +85,19 @@ jobs:
         $diskGB = [math]::Round($disk.Size / 1GB, 1)
         Write-Host "Disk Space: $diskGB GB" -ForegroundColor Cyan
 
-        $info = @{
-          windows_version = $windowsVersion
-          cpu_name = $cpuInfo.Name
-          cpu_cores = $cpuInfo.NumberOfCores
-          memory_gb = $memoryGB
-          disk_gb = $diskGB
-        } | ConvertTo-Json
+        # 안전한 JSON 생성 (특수 문자 이스케이프 및 한 줄로 변환)
+        $windowsVersionSafe = $windowsVersion -replace '[\\"]', '\\$&' -replace '`n', '\\n' -replace '`r', '\\r'
+        $cpuNameSafe = $cpuName -replace '[\\"]', '\\$&' -replace '`n', '\\n' -replace '`r', '\\r'
 
-        echo "info=$info" >> $env:GITHUB_OUTPUT
-        echo "windows-version=$windowsVersion" >> $env:GITHUB_OUTPUT
+        $jsonInfo = "{`"windows_version`":`"$windowsVersionSafe`",`"cpu_name`":`"$cpuNameSafe`",`"cpu_cores`":$($cpuInfo.NumberOfCores),`"memory_gb`":$memoryGB,`"disk_gb`":$diskGB}"
+
+        Write-Host "Generated JSON: $jsonInfo" -ForegroundColor Gray
+
+        # GitHub Output에 안전하게 기록
+        echo "info=$jsonInfo" >> $env:GITHUB_OUTPUT
+        echo "windows-version=$windowsVersionSafe" >> $env:GITHUB_OUTPUT
+
+        Write-Host "Runner information gathered successfully" -ForegroundColor Green
 
   # 공통 환경 설정 및 의존성 설치
   setup-environment:
