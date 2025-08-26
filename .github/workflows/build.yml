@@ -162,19 +162,95 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Configure CMake
+      run: |
+        Write-Host "=== Configuring CMake for Universal MacType Manager ===" -ForegroundColor Green
+
+        # Create build directory
+        mkdir build-manager
+        cd build-manager
+
+        # Configure CMake
+        cmake .. -G "Visual Studio 17 2022" -A x64 `
+                 -DCMAKE_BUILD_TYPE=Release `
+                 -DBUILD_MODERN_MANAGER=ON `
+                 -DCMAKE_SYSTEM_NAME=WindowsStore `
+                 -DCMAKE_SYSTEM_VERSION=10.0
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "CMake configuration failed" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "CMake configuration completed successfully" -ForegroundColor Green
+
     - name: Build Manager
       id: build-manager
       run: |
         Write-Host "=== Building Universal MacType Manager ===" -ForegroundColor Green
-        Write-Host "Build completed successfully" -ForegroundColor Green
-        echo "build-time=1" >> $env:GITHUB_OUTPUT
+
+        cd build-manager
+
+        # Build the project
+        $buildStart = Get-Date
+        cmake --build . --config Release --parallel 4
+        $buildEnd = Get-Date
+        $buildTime = ($buildEnd - $buildStart).TotalSeconds
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Build failed" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Build completed in $($buildTime.ToString("F1"))s" -ForegroundColor Green
+        echo "build-time=$buildTime" >> $env:GITHUB_OUTPUT
 
     - name: Package Manager
       id: package-manager
       run: |
         Write-Host "=== Packaging Universal MacType Manager ===" -ForegroundColor Green
-        Write-Host "Package completed successfully" -ForegroundColor Green
-        echo "package-size=1024" >> $env:GITHUB_OUTPUT
+
+        cd build-manager
+
+        # Find built files
+        $msixFiles = Get-ChildItem -Path "." -Include "*.msix" -Recurse -ErrorAction SilentlyContinue
+
+        if ($msixFiles.Count -eq 0) {
+          Write-Host "No MSIX files found, looking for other build outputs..." -ForegroundColor Yellow
+          $exeFiles = Get-ChildItem -Path "." -Include "*.exe" -Recurse -ErrorAction SilentlyContinue
+          if ($exeFiles.Count -eq 0) {
+            Write-Host "No executable files found either" -ForegroundColor Red
+            exit 1
+          }
+          Write-Host "Found $($exeFiles.Count) executable files" -ForegroundColor Green
+        } else {
+          Write-Host "Found $($msixFiles.Count) MSIX files" -ForegroundColor Green
+        }
+
+        # Calculate total size
+        $totalSize = 0
+        $allFiles = Get-ChildItem -Path "." -Include "*.msix", "*.exe", "*.dll" -Recurse -ErrorAction SilentlyContinue
+
+        foreach ($file in $allFiles) {
+          $totalSize += $file.Length
+          $sizeMB = [math]::Round($file.Length / 1MB, 2)
+          Write-Host "  $($file.Name): $sizeMB MB" -ForegroundColor Gray
+        }
+
+        $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+        Write-Host "Total package size: $totalSizeMB MB" -ForegroundColor Green
+        echo "package-size=$totalSizeMB" >> $env:GITHUB_OUTPUT
+
+    - name: Upload Manager Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacTypeManager-Universal
+        path: |
+          build-manager/*.msix
+          build-manager/*.exe
+          build-manager/*.dll
+        retention-days: 30
+        if-no-files-found: warn
 
   build-agents:
     if: needs.finalize-setup.outputs.setup-status == 'success'
@@ -196,15 +272,128 @@ jobs:
       id: build-platforms
       run: |
         Write-Host "=== Building All Platforms (x64 Host) ===" -ForegroundColor Green
-        Write-Host "Build completed successfully" -ForegroundColor Green
-        echo "build-times=x86:1,x64:2,arm64:3" >> $env:GITHUB_OUTPUT
+
+        # Platform configurations
+        $platforms = @(
+          @{Name="x86"; Platform="Win32"; Agent="OFF"; Manager="OFF"; Desc="32-bit Core DLL"},
+          @{Name="x64"; Platform="x64"; Agent="ON"; Manager="OFF"; Desc="64-bit Agent + Core"},
+          @{Name="ARM64"; Platform="ARM64"; Agent="ON"; Manager="OFF"; Desc="ARM64 Agent + Core"}
+        )
+
+        $buildTimes = @{}
+        $totalBuildStart = Get-Date
+
+        foreach ($plat in $platforms) {
+          Write-Host "Building $($plat.Name) ($($plat.Desc))..." -ForegroundColor Cyan
+
+          $buildDir = "build-$($plat.Name)"
+          if (Test-Path $buildDir) {
+            Remove-Item -Recurse -Force $buildDir
+          }
+          mkdir $buildDir
+          cd $buildDir
+
+          # Configure CMake
+          Write-Host "Configuring CMake for $($plat.Name)..." -ForegroundColor Gray
+          cmake .. -G "Visual Studio 17 2022" `
+                   -DCMAKE_BUILD_TYPE=Release `
+                   -DCMAKE_GENERATOR_PLATFORM=$($plat.Platform) `
+                   -DBUILD_MODERN_AGENT=$($plat.Agent) `
+                   -DBUILD_MODERN_MANAGER=$($plat.Manager) `
+                   -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
+                   -DCMAKE_C_FLAGS="/MP /O2 /DNDEBUG"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "CMake configuration failed for $($plat.Name)" -ForegroundColor Red
+            exit 1
+          }
+
+          # Build
+          Write-Host "Building $($plat.Name)..." -ForegroundColor Gray
+          $buildStart = Get-Date
+          cmake --build . --config Release --parallel 2
+          $buildEnd = Get-Date
+          $buildTime = ($buildEnd - $buildStart).TotalSeconds
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Build failed for $($plat.Name)" -ForegroundColor Red
+            exit 1
+          }
+
+          $buildTimes[$plat.Name] = $buildTime
+          Write-Host "$($plat.Name) build completed in $($buildTime.ToString("F1"))s" -ForegroundColor Green
+
+          cd ..
+        }
+
+        $totalBuildEnd = Get-Date
+        $totalBuildTime = ($totalBuildEnd - $totalBuildStart).TotalSeconds
+        Write-Host "All platforms built in $($totalBuildTime.ToString("F1")) seconds" -ForegroundColor Green
+
+        $buildTimesJson = $buildTimes | ConvertTo-Json
+        echo "build-times=$buildTimesJson" >> $env:GITHUB_OUTPUT
 
     - name: Package Platforms
       id: package-platforms
       run: |
-        Write-Host "=== Packaging All Platforms ===" -ForegroundColor Green
-        Write-Host "Package completed successfully" -ForegroundColor Green
-        echo "total-size=4096" >> $env:GITHUB_OUTPUT
+        Write-Host "=== Creating Platform Packages ===" -ForegroundColor Green
+
+        $platforms = @("x86", "x64", "ARM64")
+        $totalSize = 0
+
+        foreach ($platform in $platforms) {
+          Write-Host "Creating $platform package..." -ForegroundColor Cyan
+
+          $buildDir = "build-$platform"
+          if (Test-Path $buildDir) {
+            cd $buildDir
+
+            # Find built files
+            if ($platform -eq "x86") {
+              $files = Get-ChildItem -Path "." -Include "*.dll" -Recurse -ErrorAction SilentlyContinue
+            } else {
+              $files = Get-ChildItem -Path "." -Include "*.exe", "*.dll" -Recurse -ErrorAction SilentlyContinue
+            }
+
+            if ($files.Count -eq 0) {
+              Write-Host "No $platform build files found!" -ForegroundColor Red
+              exit 1
+            }
+
+            Write-Host "Found $($files.Count) files for $platform" -ForegroundColor Green
+
+            # Create ZIP package
+            $zipPath = "../MacType-$platform-Release.zip"
+            Compress-Archive -Path $files -DestinationPath $zipPath -CompressionLevel Optimal
+
+            if (Test-Path $zipPath) {
+              $zipSize = [math]::Round((Get-Item $zipPath).Length / 1MB, 2)
+              Write-Host "$platform package created: $zipSize MB" -ForegroundColor Green
+              $totalSize += (Get-Item $zipPath).Length
+            } else {
+              Write-Host "Failed to create $platform package" -ForegroundColor Red
+              exit 1
+            }
+
+            cd ..
+          } else {
+            Write-Host "$platform build directory not found!" -ForegroundColor Red
+            exit 1
+          }
+        }
+
+        $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+        Write-Host "Total size: $totalSizeMB MB" -ForegroundColor Green
+        echo "total-size=$totalSizeMB" >> $env:GITHUB_OUTPUT
+
+    - name: Upload Platform Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacType-All-Platforms
+        path: |
+          MacType-*-Release.zip
+        retention-days: 30
+        if-no-files-found: error
 
   create-release:
     name: Create Release
@@ -215,12 +404,49 @@ jobs:
       release-id: ${{ steps.create-release.outputs.release-id }}
 
     steps:
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create Release Archive
+      run: |
+        Write-Host "=== Creating Release Archive ===" -ForegroundColor Green
+
+        # Create release directory
+        mkdir release-files -ErrorAction SilentlyContinue
+
+        # Copy all artifacts to release directory
+        Write-Host "Copying artifacts to release directory..." -ForegroundColor Cyan
+        Copy-Item -Path "artifacts\*" -Destination "release-files\" -Recurse -Force
+
+        # Create complete release package
+        Write-Host "Creating complete release package..." -ForegroundColor Cyan
+        Compress-Archive -Path "release-files\*" -DestinationPath "MacType-Universal-Complete.zip" -CompressionLevel Optimal
+
+        Write-Host "Release archive created successfully" -ForegroundColor Green
+
+    - name: Upload Release Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacType-Release-Complete
+        path: MacType-Universal-Complete.zip
+        retention-days: 60
+
     - name: Create Release
       id: create-release
       run: |
-        Write-Host "=== Creating Release ===" -ForegroundColor Green
-        Write-Host "Release created successfully" -ForegroundColor Green
-        echo "release-id=12345" >> $env:GITHUB_OUTPUT
+        Write-Host "=== Creating GitHub Release ===" -ForegroundColor Green
+
+        # Get current date for release tag
+        $date = Get-Date -Format "yyyy-MM-dd"
+        $releaseTag = "v$date"
+
+        Write-Host "Release tag: $releaseTag" -ForegroundColor Cyan
+        echo "release-tag=$releaseTag" >> $env:GITHUB_OUTPUT
+        echo "release-id=dummy-$date" >> $env:GITHUB_OUTPUT
+
+        Write-Host "GitHub Release creation prepared" -ForegroundColor Green
 
   deploy-release:
     name: Deploy Release
@@ -229,7 +455,42 @@ jobs:
     timeout-minutes: 5
 
     steps:
-    - name: Deploy Release
+    - name: Download Release Package
+      uses: actions/download-artifact@v4
+      with:
+        name: MacType-Release-Complete
+        path: release-package
+
+    - name: Verify Release Package
       run: |
-        Write-Host "=== Deploying Release ===" -ForegroundColor Green
-        Write-Host "Release deployed successfully" -ForegroundColor Green
+        Write-Host "=== Verifying Release Package ===" -ForegroundColor Green
+
+        $releaseFiles = Get-ChildItem -Path "release-package" -Filter "*.zip"
+        if ($releaseFiles.Count -eq 0) {
+          Write-Host "ERROR: No release packages found!" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Found $($releaseFiles.Count) release packages:" -ForegroundColor Cyan
+        $totalSize = 0
+        foreach ($file in $releaseFiles) {
+          $sizeMB = [math]::Round($file.Length / 1MB, 2)
+          $totalSize += $file.Length
+          Write-Host "  📦 $($file.Name): $sizeMB MB" -ForegroundColor Gray
+        }
+
+        $totalSizeGB = [math]::Round($totalSize / 1GB, 2)
+        Write-Host "Total release size: $totalSizeGB GB" -ForegroundColor Green
+
+    - name: Prepare Deployment
+      run: |
+        Write-Host "=== Preparing Deployment ===" -ForegroundColor Green
+
+        # List all files in release package
+        Get-ChildItem -Path "release-package" -Recurse | ForEach-Object {
+          $size = [math]::Round($_.Length / 1MB, 2)
+          Write-Host "  📄 $($_.FullName.Replace($PWD.Path, '')): $size MB" -ForegroundColor Gray
+        }
+
+        Write-Host "Deployment preparation completed" -ForegroundColor Green
+        Write-Host "Release is ready for deployment!" -ForegroundColor Green
