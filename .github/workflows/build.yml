@@ -123,9 +123,36 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Basic setup
+    - name: Setup vcpkg and dependencies
       run: |
-        Write-Host "=== Basic environment setup ===" -ForegroundColor Green
+        Write-Host "=== Setting up vcpkg and dependencies ===" -ForegroundColor Green
+
+        # Install vcpkg if not present
+        if (!(Test-Path "vcpkg/vcpkg.exe")) {
+          Write-Host "Installing vcpkg..." -ForegroundColor Cyan
+          git clone https://github.com/Microsoft/vcpkg.git --depth 1 --branch master
+          cd vcpkg
+          .\bootstrap-vcpkg.bat -disableMetrics
+          cd ..
+        } else {
+          Write-Host "vcpkg already installed" -ForegroundColor Green
+        }
+
+        # Set environment variables
+        $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:PATH = "$vcpkgRoot;$env:PATH"
+
+        Write-Host "VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
+
+        # Install dependencies
+        Write-Host "Installing dependencies..." -ForegroundColor Cyan
+        cd vcpkg
+        .\vcpkg.exe install --triplet=x64-windows freetype[core,brotli,bzip2,png,zlib] zlib libpng brotli detours nlohmann-json
+        .\vcpkg.exe install --triplet=x86-windows freetype[core,brotli,bzip2,png,zlib] zlib libpng brotli detours nlohmann-json
+        .\vcpkg.exe install --triplet=arm64-windows freetype[core,brotli,bzip2,png,zlib] zlib libpng brotli detours nlohmann-json
+        cd ..
+
         Write-Host "Environment setup completed successfully" -ForegroundColor Green
 
   finalize-setup:
@@ -165,6 +192,13 @@ jobs:
     - name: Configure CMake
       run: |
         Write-Host "=== Configuring CMake for Universal MacType Manager ===" -ForegroundColor Green
+
+        # Set up vcpkg environment
+        $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:PATH = "$vcpkgRoot;$env:PATH"
+
+        Write-Host "Using vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
 
         # Create build directory
         mkdir build-manager
@@ -267,6 +301,17 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Setup vcpkg environment
+      run: |
+        Write-Host "=== Setting up vcpkg environment ===" -ForegroundColor Green
+
+        # Set up vcpkg environment
+        $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:PATH = "$vcpkgRoot;$env:PATH"
+
+        Write-Host "Using vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
+
     - name: Build Platforms
       id: build-platforms
       run: |
@@ -309,14 +354,31 @@ jobs:
             default { "x64-windows" }
           }
 
-          cmake .. -G "Visual Studio 17 2022" `
-                   -DCMAKE_BUILD_TYPE=Release `
-                   -DCMAKE_GENERATOR_PLATFORM=$($plat.Platform) `
-                   -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
-                   -DBUILD_MODERN_AGENT=$($plat.Agent) `
-                   -DBUILD_MODERN_MANAGER=$($plat.Manager) `
-                   -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
-                   -DCMAKE_C_FLAGS="/MP /O2 /DNDEBUG"
+          if ($plat.Platform -eq "Win32") {
+            cmake .. -G "Visual Studio 17 2022" -A Win32 `
+                     -DCMAKE_BUILD_TYPE=Release `
+                     -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+                     -DBUILD_MODERN_AGENT=$($plat.Agent) `
+                     -DBUILD_MODERN_MANAGER=$($plat.Manager) `
+                     -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
+                     -DCMAKE_C_FLAGS="/MP /O2 /DNDEBUG"
+          } elseif ($plat.Platform -eq "x64") {
+            cmake .. -G "Visual Studio 17 2022" -A x64 `
+                     -DCMAKE_BUILD_TYPE=Release `
+                     -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+                     -DBUILD_MODERN_AGENT=$($plat.Agent) `
+                     -DBUILD_MODERN_MANAGER=$($plat.Manager) `
+                     -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
+                     -DCMAKE_C_FLAGS="/MP /O2 /DNDEBUG"
+          } elseif ($plat.Platform -eq "ARM64") {
+            cmake .. -G "Visual Studio 17 2022" -A ARM64 `
+                     -DCMAKE_BUILD_TYPE=Release `
+                     -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+                     -DBUILD_MODERN_AGENT=$($plat.Agent) `
+                     -DBUILD_MODERN_MANAGER=$($plat.Manager) `
+                     -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
+                     -DCMAKE_C_FLAGS="/MP /O2 /DNDEBUG"
+          }
 
           if ($LASTEXITCODE -ne 0) {
             Write-Host "CMake configuration failed for $($plat.Name)" -ForegroundColor Red
