@@ -11,21 +11,7 @@
 #include <freetype/ftenv.h>
 #endif
 
-// INI-JSON 변환 디버깅용 함수 (개발 중에만 사용)
-void DebugPrintIniConversion(LPCTSTR iniFile) {
-#ifdef _DEBUG
-    CParseIni testConfig;
-    testConfig.LoadFromIniFile(iniFile);
 
-    // 변환된 JSON 출력
-    if (testConfig.IsPartExists("General")) {
-        auto general = testConfig["General"];
-        if (general.IsValueExists("Name")) {
-            std::wcout << L"INI 변환 성공: " << general["Name"].ToString() << std::endl;
-        }
-    }
-#endif
-}
 
 CControlCenter* g_ControlCenter = NULL;
 
@@ -431,25 +417,9 @@ bool CGdippSettings::LoadSettings(HINSTANCE hModule)
 		return false;
 	}
 
-	// 먼저 JSON 파일 시도, 없으면 INI 파일 시도
+	// JSON 파일로 설정 파일명 설정
 	ChangeFileName(m_szFileName, nSize, L"MacType.json");
-	std::filesystem::path jsonPath(m_szFileName);
-
-	if (std::filesystem::exists(jsonPath)) {
-		return LoadAppSettings(m_szFileName);
-	} else {
-		// JSON 파일이 없으면 INI 파일 시도
-		ChangeFileName(m_szFileName, nSize, L"MacType.ini");
-		std::filesystem::path iniPath(m_szFileName);
-
-		if (std::filesystem::exists(iniPath)) {
-			return LoadAppSettings(m_szFileName);
-		} else {
-			// 둘 다 없으면 JSON 파일로 돌아가서 기본 설정 생성
-			ChangeFileName(m_szFileName, nSize, L"MacType.json");
-			return LoadAppSettings(m_szFileName);
-		}
-	}
+	return LoadAppSettings(m_szFileName);
 }
 
 int CGdippSettings::_GetFreeTypeProfileIntFromSection(LPCTSTR lpszSection, LPCTSTR lpszKey, int nDefault, LPCTSTR lpszFile)
@@ -640,48 +610,31 @@ void CGdippSettings::GetOSVersion() {
 
 bool CGdippSettings::LoadAppSettings(LPCTSTR lpszFile)
 {
-	// 各種設定読み込み
-	// INIファイルの例:
-	// [General]
-	// HookChildProcesses=0
-	// HintingMode=0
-	// AntiAliasMode=0
-	// NormalWeight=0
-	// BoldWeight=0
-	// ItalicSlant=0
-	// EnableKerning=0
-	// MaxHeight=0
-	// ForceChangeFont=ＭＳ Ｐゴシック
-	// TextTuning=0
-	// TextTuningR=0
-	// TextTuningG=0
-	// TextTuningB=0
-	// CacheMaxFaces=0
-	// CacheMaxSizes=0
-	// CacheMaxBytes=0
-	// AlternativeFile=
-	// LoadOnDemand=0
-	// UseMapping=0
-	// LcdFilter=0
-	// Shadow=1,1,4
-	// [Individual]
-	// ＭＳ Ｐゴシック=0,1,2,3,4,5
+	// JSON 기반 설정 로드
+	// 설정 파일 구조:
+	// {
+	//   "General": {
+	//     "HookChildProcesses": 0,
+	//     "HintingMode": 0,
+	//     "AntiAliasMode": 0
+	//     ...
+	//   },
+	//   "DirectWrite": {
+	//     "RenderingMode": 6,
+	//     "GammaValue": 1.5
+	//     ...
+	//   },
+	//   "Individual": {
+	//     "Arial": "0,1,2,3,4,5"
+	//     ...
+	//   }
+	// }
 	GetOSVersion();
 
-	// 파일 확장자에 따라 INI 또는 JSON 로드
-	std::filesystem::path filePath(lpszFile);
-	std::string extension = filePath.extension().string();
+	// JSON 파일 로드
+	m_Config.LoadFromFile(lpszFile);
 
-	if (extension == ".ini") {
-		// INI 파일을 JSON으로 변환하여 로드
-		m_Config.LoadFromIniFile(lpszFile);
-	} else {
-		// JSON 파일 직접 로드
-		m_Config.LoadFromFile(lpszFile);
-	}
-
-	// JSON 기반 설정에서는 INI 플러시 불필요
-	// WritePrivateProfileString(NULL, NULL, NULL, lpszFile);
+	// JSON 기반 설정에서는 별도 플러시 불필요
 
 	// m_Config.Clear(); // 이미 로드된 데이터를 유지
 
@@ -697,15 +650,8 @@ bool CGdippSettings::LoadAppSettings(LPCTSTR lpszFile)
 		StringCchCopy(m_szFileName, MAX_PATH, szAlternative);
 		lpszFile = m_szFileName;
 
-		// AlternativeFile도 같은 방식으로 처리
-		std::filesystem::path altFilePath(lpszFile);
-		std::string altExtension = altFilePath.extension().string();
-
-		if (altExtension == ".ini") {
-			m_Config.LoadFromIniFile(lpszFile);
-		} else {
-			m_Config.LoadFromFile(lpszFile);
-		}
+		// AlternativeFile도 JSON으로 로드
+		m_Config.LoadFromFile(lpszFile);
 	}
 
 	_GetAlternativeProfileName(m_szexeName, lpszFile);

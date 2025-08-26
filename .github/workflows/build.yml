@@ -64,6 +64,61 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
+    - name: Install Windows App SDK
+      run: |
+        Write-Host "Installing Windows App SDK..." -ForegroundColor Green
+        # Windows App SDK 설치 (winget 사용)
+        winget install Microsoft.WindowsAppSDK --accept-package-agreements --accept-source-agreements --silent
+
+        # 설치 확인 및 환경 설정
+        Write-Host "Checking Windows App SDK installation..." -ForegroundColor Cyan
+
+        # 일반적인 설치 경로들 확인
+        $possiblePaths = @(
+          "${env:ProgramFiles}\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
+          "${env:ProgramFiles}\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\",
+          "${env:ProgramFiles}\WindowsApps\Microsoft.WindowsAppSDK.1.2_*\",
+          "${env:ProgramFiles(x86)}\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
+          "${env:ProgramFiles(x86)}\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\",
+          "${env:ProgramFiles(x86)}\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.2_*\"
+        )
+
+        $foundSdk = $false
+        foreach ($path in $possiblePaths) {
+          if (Test-Path $path) {
+            $actualPath = Resolve-Path $path
+            Write-Host "Windows App SDK found at: $actualPath" -ForegroundColor Green
+            $foundSdk = $true
+            break
+          }
+        }
+
+        if (-not $foundSdk) {
+          Write-Host "Windows App SDK not found in expected locations, checking winget..." -ForegroundColor Yellow
+          winget list Microsoft.WindowsAppSDK
+
+          # winget이 설치한 경우, 기본 경로를 다시 확인
+          $defaultPaths = @(
+            "C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
+            "C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\",
+            "C:\Program Files (x86)\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
+            "C:\Program Files (x86)\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\"
+          )
+
+          foreach ($path in $defaultPaths) {
+            if (Test-Path $path) {
+              $actualPath = Resolve-Path $path
+              Write-Host "Windows App SDK found at: $actualPath" -ForegroundColor Green
+              $foundSdk = $true
+              break
+            }
+          }
+        }
+
+        if (-not $foundSdk) {
+          Write-Host "Windows App SDK installation might have failed, continuing anyway..." -ForegroundColor Yellow
+        }
+
     - name: Add Windows SDK to PATH and set compatible SDK version
       run: |
         echo "=== 설치된 Windows SDK 버전들 ==="
@@ -139,7 +194,7 @@ jobs:
         }
 
         Write-Host "Using vcpkg toolchain: $vcpkgToolchain"
-        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }} -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed"
+        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }} -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=ON
 
     - name: Build with CMake
       run: |
@@ -153,7 +208,16 @@ jobs:
         path: |
           build/**/*.dll
           build/**/*.exe
+          build/**/*.pdb
+          build/**/*.lib
         retention-days: 30
+
+    - name: List build artifacts
+      run: |
+        Write-Host "Build artifacts:" -ForegroundColor Green
+        Get-ChildItem -Path build -Recurse -Include *.exe, *.dll | ForEach-Object {
+          Write-Host "  $($_.FullName) ($($_.Length) bytes)"
+        }
 
   create-installer:
     name: Create Windows Installer

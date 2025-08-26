@@ -381,6 +381,98 @@ if(WIN32)
     # Loader executable for MacType.Core.dll
     add_executable(MacType.Loader WIN32 src/platform/run.cpp)
     target_link_libraries(MacType.Loader PRIVATE mactype)
+
+    # Modern mt64agnt with WinUI 3
+    option(BUILD_MODERN_AGENT "Build the modern mt64agnt with WinUI 3" ON)
+    if(BUILD_MODERN_AGENT)
+        # Find Windows App SDK (only on Windows)
+        if(WIN32)
+            # Try to find Windows App SDK in common installation paths
+            set(WINDOWS_APP_SDK_PATHS
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.4_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.3_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.2_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.1_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.0_*"
+            )
+
+            find_path(MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR
+                NAMES Microsoft.UI.Xaml.Markup.h
+                PATHS ${WINDOWS_APP_SDK_PATHS}
+                PATH_SUFFIXES include
+            )
+
+            find_library(MICROSOFT_WINDOWS_APP_SDK_LIBRARY
+                NAMES Microsoft.WindowsAppSDK.lib
+                PATHS ${WINDOWS_APP_SDK_PATHS}
+                PATH_SUFFIXES lib
+            )
+
+            if(MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR AND MICROSOFT_WINDOWS_APP_SDK_LIBRARY)
+                set(Microsoft_WindowsAppSDK_FOUND TRUE)
+                add_library(Microsoft::WindowsAppSDK INTERFACE IMPORTED)
+                set_target_properties(Microsoft::WindowsAppSDK PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR}"
+                    INTERFACE_LINK_LIBRARIES "${MICROSOFT_WINDOWS_APP_SDK_LIBRARY}"
+                )
+                message(STATUS "Found Windows App SDK: ${MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR}")
+            else()
+                message(WARNING "Windows App SDK not found. Modern agent will not be built.")
+                set(BUILD_MODERN_AGENT OFF)
+            endif()
+        endif()
+
+        # Collect agent source files
+        set(AGENT_SOURCES
+            src/platform/agent/mt64agnt.cpp
+            src/platform/agent/core/agent_controller.cpp
+            src/platform/agent/core/process_bridge.cpp
+            src/platform/agent/ipc/secure_channel.cpp
+            src/platform/agent/injection/modern_injector.cpp
+            src/platform/agent/utils/logger.cpp
+            src/platform/agent/utils/winrt_helper.cpp
+        )
+
+        # Add WinUI 3 executable
+        add_executable(mt64agnt WIN32 ${AGENT_SOURCES})
+
+        # Set WinUI 3 properties
+        set_target_properties(mt64agnt PROPERTIES
+            VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Platform x64
+            VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Version 1.4
+            VS_PACKAGE_REFERENCES "Microsoft.WindowsAppSDK_1.4"
+        )
+
+        # Link dependencies
+        target_link_libraries(mt64agnt
+            PRIVATE
+            mactype
+            Microsoft::WindowsAppSDK
+        )
+
+        # Include directories
+        target_include_directories(mt64agnt PRIVATE
+            src/platform/agent
+            src
+        )
+
+        # Precompiled headers for better build performance
+        if(ENABLE_PCH)
+            target_precompile_headers(mt64agnt PRIVATE
+                <winrt/Windows.Foundation.h>
+                <winrt/Windows.Security.Cryptography.h>
+                <memory>
+                <string>
+                <vector>
+            )
+        endif()
+
+        # Set C++/WinRT properties
+        set_target_properties(mt64agnt PROPERTIES
+            CXX_STANDARD 20
+            CXX_STANDARD_REQUIRED ON
+        )
+    endif()
 endif()
 
 # Install targets - do not export mactype to avoid detours dependency issues
@@ -401,6 +493,13 @@ if(WIN32)
     install(TARGETS MacType.Core MacTuner MacTray
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
+
+    # Install modern agent if built
+    if(BUILD_MODERN_AGENT)
+        install(TARGETS mt64agnt
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+    endif()
 endif()
 
 # Generate and install CMake config files

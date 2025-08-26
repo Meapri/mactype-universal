@@ -22,7 +22,8 @@
     "libpng",
     "brotli",
     "bzip2",
-    "gtest"
+    "gtest",
+    "microsoft.windowsappsdk"
   ],
 
   "features": {
