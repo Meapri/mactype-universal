@@ -115,7 +115,8 @@ jobs:
     timeout-minutes: 25
     outputs:
       vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
-      setup-status: ${{ steps.final-verification.outputs.status }}
+      setup-status: ${{ steps.final-status.outputs.status }}
+      env-status: 'completed'
 
     steps:
     - name: Checkout code
@@ -367,13 +368,14 @@ jobs:
           Write-Host "Warning: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Yellow
         }
 
+        # Output vcpkg root for dependent jobs before changing directory
+        echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
+
         cd ..
         Write-Host "vcpkg setup complete" -ForegroundColor Green
 
-        # Output vcpkg root for dependent jobs
-        echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
-
     - name: Pre-install common dependencies
+      id: pre-install
       if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
         Write-Host "=== Pre-installing common dependencies ===" -ForegroundColor Green
@@ -427,6 +429,9 @@ jobs:
 
         Write-Host "Common dependencies pre-downloaded" -ForegroundColor Green
 
+        # Output success status for dependent jobs
+        echo "setup-status=success" >> $env:GITHUB_OUTPUT
+
         # Set VCPKG_ROOT for subsequent jobs
         $vcpkgRoot = $env:VCPKG_ROOT
         if ([string]::IsNullOrEmpty($vcpkgRoot)) {
@@ -444,25 +449,69 @@ jobs:
         Write-Host "Environment setup completed successfully!" -ForegroundColor Green
         Write-Host "Final VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
-    - name: Final Environment Verification
-      id: final-verification
-      run: |
+        # Final verification and status output
         Write-Host "=== Final Environment Verification ===" -ForegroundColor Green
 
-        # Get vcpkg root from setup-vcpkg step
-        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
-        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
-          $vcpkgRoot = $env:VCPKG_ROOT
-        }
-
         if (!(Test-Path "$vcpkgRoot/vcpkg.exe")) {
-          Write-Host "ERROR: vcpkg.exe not found at expected location" -ForegroundColor Red
-          echo "status=failed" >> $env:GITHUB_OUTPUT
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgRoot/vcpkg.exe" -ForegroundColor Red
+          echo "setup-status=failed" >> $env:GITHUB_OUTPUT
           exit 1
         }
 
+        Write-Host "vcpkg.exe found successfully" -ForegroundColor Green
         Write-Host "All environment setup completed successfully" -ForegroundColor Green
-        echo "status=success" >> $env:GITHUB_OUTPUT
+
+        # Output status for dependent jobs
+        echo "setup-status=success" >> $env:GITHUB_OUTPUT
+
+    - name: Set status for cached vcpkg
+      id: cached-status
+      if: steps.cache-vcpkg.outputs.cache-hit == 'true'
+      run: |
+        Write-Host "=== Setting status for cached vcpkg ===" -ForegroundColor Green
+
+        # Verify vcpkg is available
+        $vcpkgRoot = $env:VCPKG_ROOT
+        if ([string]::IsNullOrEmpty($vcpkgRoot) -or !(Test-Path "$vcpkgRoot/vcpkg.exe")) {
+          Write-Host "ERROR: Cached vcpkg is not available" -ForegroundColor Red
+          echo "setup-status=failed" >> $env:GITHUB_OUTPUT
+          exit 1
+        }
+
+        Write-Host "Cached vcpkg verified successfully" -ForegroundColor Green
+        echo "setup-status=success" >> $env:GITHUB_OUTPUT
+
+    - name: Final Status Determination
+      id: final-status
+      run: |
+        Write-Host "=== Determining Final Setup Status ===" -ForegroundColor Green
+
+        # Determine status based on cache hit
+        $cacheHit = "${{ steps.cache-vcpkg.outputs.cache-hit }}"
+        $preInstallStatus = "${{ steps.pre-install.outputs.setup-status }}"
+        $cachedStatus = "${{ steps.cached-status.outputs.setup-status }}"
+
+        Write-Host "Cache hit: $cacheHit" -ForegroundColor Gray
+        Write-Host "Pre-install status: $preInstallStatus" -ForegroundColor Gray
+        Write-Host "Cached status: $cachedStatus" -ForegroundColor Gray
+
+        $isSuccess = $false
+        if ($cacheHit -eq "true" -and $cachedStatus -eq "success") {
+          $isSuccess = $true
+          Write-Host "Using cached vcpkg successfully" -ForegroundColor Green
+        } elseif ($cacheHit -ne "true" -and $preInstallStatus -eq "success") {
+          $isSuccess = $true
+          Write-Host "Pre-install completed successfully" -ForegroundColor Green
+        }
+
+        if ($isSuccess) {
+          Write-Host "Environment setup successful" -ForegroundColor Green
+          echo "status=success" >> $env:GITHUB_OUTPUT
+        } else {
+          Write-Host "Environment setup failed" -ForegroundColor Red
+          echo "status=failed" >> $env:GITHUB_OUTPUT
+          exit 1
+        }
 
   # Universal Manager 빌드 (x64 + ARM64 지원)
   build-manager:
