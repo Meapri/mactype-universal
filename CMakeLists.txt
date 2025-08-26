@@ -85,17 +85,30 @@ if(ENABLE_COVERAGE)
 endif()
 
 # Find FreeType manually (vcpkg compatibility)
-find_path(FREETYPE_INCLUDE_DIR ft2build.h
-    PATHS ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/freetype2
-          ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
-    NO_DEFAULT_PATH
-)
+if(VCPKG_INSTALLED_DIR AND VCPKG_TARGET_TRIPLET)
+    find_path(FREETYPE_INCLUDE_DIR ft2build.h
+        PATHS ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/freetype2
+              ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
+        NO_DEFAULT_PATH
+    )
 
-find_library(FREETYPE_LIBRARY
-    NAMES freetype.lib freetype
-    PATHS ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
-    NO_DEFAULT_PATH
-)
+    find_library(FREETYPE_LIBRARY
+        NAMES freetype.lib freetype
+        PATHS ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib
+        NO_DEFAULT_PATH
+    )
+else()
+    # Fallback: try to find in CMAKE_PREFIX_PATH
+    find_path(FREETYPE_INCLUDE_DIR ft2build.h
+        PATHS ${CMAKE_PREFIX_PATH}/include/freetype2
+              ${CMAKE_PREFIX_PATH}/include
+    )
+
+    find_library(FREETYPE_LIBRARY
+        NAMES freetype.lib freetype
+        PATHS ${CMAKE_PREFIX_PATH}/lib
+    )
+endif()
 
 if(NOT FREETYPE_INCLUDE_DIR OR NOT FREETYPE_LIBRARY)
     message(FATAL_ERROR "FreeType not found. Please check vcpkg installation.")

@@ -145,12 +145,15 @@ jobs:
 
         Write-Host "VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
-        # Install dependencies
+        # Install dependencies using manifest mode
         Write-Host "Installing dependencies..." -ForegroundColor Cyan
         cd vcpkg
-        .\vcpkg.exe install --triplet=x64-windows freetype[core,brotli,bzip2,png,zlib] zlib libpng brotli detours nlohmann-json
-        .\vcpkg.exe install --triplet=x86-windows freetype[core,brotli,bzip2,png,zlib] zlib libpng brotli detours nlohmann-json
-        .\vcpkg.exe install --triplet=arm64-windows freetype[core,brotli,bzip2,png,zlib] zlib libpng brotli detours nlohmann-json
+
+        # Install for each triplet using manifest mode
+        .\vcpkg.exe install --triplet=x64-windows --no-print-usage
+        .\vcpkg.exe install --triplet=x86-windows --no-print-usage
+        .\vcpkg.exe install --triplet=arm64-windows --no-print-usage
+
         cd ..
 
         Write-Host "Environment setup completed successfully" -ForegroundColor Green
@@ -205,9 +208,10 @@ jobs:
         cd build-manager
 
         # Configure CMake
+        $vcpkgInstalled = "$vcpkgRoot\installed\x64-windows"
         cmake .. -G "Visual Studio 17 2022" -A x64 `
                  -DCMAKE_BUILD_TYPE=Release `
-                 -DVCPKG_TARGET_TRIPLET=x64-windows `
+                 -DCMAKE_PREFIX_PATH="$vcpkgInstalled" `
                  -DBUILD_MODERN_MANAGER=ON
 
         if ($LASTEXITCODE -ne 0) {
@@ -354,10 +358,13 @@ jobs:
             default { "x64-windows" }
           }
 
+          # Set vcpkg installed path for this triplet
+          $vcpkgInstalled = "$vcpkgRoot\installed\$vcpkgTriplet"
+
           if ($plat.Platform -eq "Win32") {
             cmake .. -G "Visual Studio 17 2022" -A Win32 `
                      -DCMAKE_BUILD_TYPE=Release `
-                     -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+                     -DCMAKE_PREFIX_PATH="$vcpkgInstalled" `
                      -DBUILD_MODERN_AGENT=$($plat.Agent) `
                      -DBUILD_MODERN_MANAGER=$($plat.Manager) `
                      -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
@@ -365,7 +372,7 @@ jobs:
           } elseif ($plat.Platform -eq "x64") {
             cmake .. -G "Visual Studio 17 2022" -A x64 `
                      -DCMAKE_BUILD_TYPE=Release `
-                     -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+                     -DCMAKE_PREFIX_PATH="$vcpkgInstalled" `
                      -DBUILD_MODERN_AGENT=$($plat.Agent) `
                      -DBUILD_MODERN_MANAGER=$($plat.Manager) `
                      -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
@@ -373,7 +380,7 @@ jobs:
           } elseif ($plat.Platform -eq "ARM64") {
             cmake .. -G "Visual Studio 17 2022" -A ARM64 `
                      -DCMAKE_BUILD_TYPE=Release `
-                     -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+                     -DCMAKE_PREFIX_PATH="$vcpkgInstalled" `
                      -DBUILD_MODERN_AGENT=$($plat.Agent) `
                      -DBUILD_MODERN_MANAGER=$($plat.Manager) `
                      -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
