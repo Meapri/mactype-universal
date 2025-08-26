@@ -95,20 +95,12 @@ jobs:
         Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
         Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
 
-    - name: Cache vcpkg
-      uses: actions/cache@v4
-      with:
-        path: |
-          vcpkg
-          vcpkg/installed
-        key: vcpkg-${{ matrix.platform }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-        restore-keys: |
-          vcpkg-${{ matrix.platform }}-
-          vcpkg-
+    # vcpkg 캐시 비활성화 - baseline 문제 해결을 위해
 
     - name: Setup vcpkg
       run: |
-        if (!(Test-Path "vcpkg")) { git clone https://github.com/Microsoft/vcpkg.git vcpkg }
+        if (Test-Path "vcpkg") { Remove-Item -Recurse -Force vcpkg }
+        git clone https://github.com/Microsoft/vcpkg.git
         cd vcpkg
         if (!(Test-Path "vcpkg.exe")) { .\bootstrap-vcpkg.bat }
         echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
@@ -120,11 +112,7 @@ jobs:
         # 플랫폼별 triplet 설정
         $triplet = if ("${{ matrix.platform }}" -eq "x64") { "x64-windows" } else { "x86-windows" }
 
-        # 수동 vcpkg 설정 및 의존성 설치
-        git clone https://github.com/Microsoft/vcpkg.git --depth 1
-        .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
-        echo "VCPKG_ROOT=$PWD\vcpkg" >> $env:GITHUB_ENV
-        echo "VCPKG_INSTALLED_DIR=$PWD\vcpkg/installed" >> $env:GITHUB_ENV
+        # vcpkg는 이미 Setup vcpkg 단계에서 설치됨
 
         # vcpkg로 의존성 설치 (매니페스트 모드)
         .\vcpkg\vcpkg.exe install --triplet $triplet
