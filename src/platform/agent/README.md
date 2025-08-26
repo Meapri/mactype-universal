@@ -87,28 +87,40 @@ Performs safe DLL injection without wow64ext.
 ## Architecture Evolution: From Legacy to Modern
 
 ### Legacy MacType Structure (wow64ext dependent)
-The original MacType had three separate executables due to wow64ext limitations:
+The original MacType had a complex multi-tier architecture:
 
-**Legacy Components:**
+**Legacy DLL Structure:**
+- `MacType.Core.dll` - 32-bit core rendering engine
+- `MacType64.Core.dll` - 64-bit core rendering engine
+- `MacType.dll` - 32-bit loader (loads MacType.Core.dll)
+- `MacType64.dll` - 64-bit loader (loads MacType64.Core.dll)
+
+**Legacy Executables:**
 - `mt64agnt.exe` (32-bit) - Main agent with wow64ext for 64-bit control
-- `MacLoader.exe` (32-bit) - 32-bit process loader
-- `MacLoader64.exe` (64-bit) - 64-bit process loader
+- `MacLoader.exe` (32-bit) - Loads MacType.dll into 32-bit processes
+- `MacLoader64.exe` (64-bit) - Loads MacType64.dll into 64-bit processes
 
 **Legacy Limitations:**
+- Multi-tier DLL loading (Loader → Core)
 - Complex cross-architecture communication
 - wow64ext dependency for stability issues
 - Manual architecture detection and routing
-- Three separate binaries to maintain
+- Four separate binaries to maintain
 
 ### Modern MacType Structure (wow64ext free)
-Our modernized approach uses a single intelligent agent:
+Our modernized approach uses unified, self-contained DLLs:
 
-**Modern Components:**
+**Modern DLL Structure:**
+- `MacType.dll` - 32-bit unified (core + loader integrated)
+- `MacType64.dll` - 64-bit unified (core + loader integrated)
+- `MacType_ARM64.dll` - ARM64 unified (core + loader integrated)
+
+**Modern Executables:**
 - `mt64agnt.exe` (x64/ARM64) - Universal agent with native multi-architecture support
-- `MacType*.dll` - Architecture-specific rendering engines
-- *No separate loaders needed*
+- *No separate loaders needed - mt64agnt handles all injection*
 
 **Modern Advantages:**
+- Single-tier DLL loading (Integrated core + loader)
 - Single binary handles all architectures
 - Native Windows API usage (no wow64ext)
 - Automatic architecture detection
