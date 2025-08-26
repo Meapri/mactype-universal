@@ -510,6 +510,55 @@ if(WIN32)
     endif()
 endif()
 
+# Modern MacType Manager with WinUI 3
+option(BUILD_MODERN_MANAGER "Build the modern MacType Manager with WinUI 3" ON)
+if(BUILD_MODERN_MANAGER)
+    # Find Windows App SDK (only on Windows)
+    if(WIN32)
+        # Windows App SDK is already found above for mt64agnt
+        if(NOT Microsoft_WindowsAppSDK_FOUND)
+            # Try to find Windows App SDK again for manager
+            set(WINDOWS_APP_SDK_PATHS
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.4_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.3_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.2_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.1_*"
+                "$ENV{ProgramFiles}/WindowsApps/Microsoft.WindowsAppSDK.1.0_*"
+            )
+
+            find_path(MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR
+                NAMES Microsoft.UI.Xaml.Markup.h
+                PATHS ${WINDOWS_APP_SDK_PATHS}
+                PATH_SUFFIXES include
+            )
+
+            find_library(MICROSOFT_WINDOWS_APP_SDK_LIBRARY
+                NAMES Microsoft.WindowsAppSDK.lib
+                PATHS ${WINDOWS_APP_SDK_PATHS}
+                PATH_SUFFIXES lib
+            )
+
+            if(MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR AND MICROSOFT_WINDOWS_APP_SDK_LIBRARY)
+                set(Microsoft_WindowsAppSDK_FOUND TRUE)
+                add_library(Microsoft::WindowsAppSDK INTERFACE IMPORTED)
+                set_target_properties(Microsoft::WindowsAppSDK PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR}"
+                    INTERFACE_LINK_LIBRARIES "${MICROSOFT_WINDOWS_APP_SDK_LIBRARY}"
+                )
+                message(STATUS "Found Windows App SDK: ${MICROSOFT_WINDOWS_APP_SDK_INCLUDE_DIR}")
+            else()
+                message(WARNING "Windows App SDK not found. Modern manager will not be built.")
+                set(BUILD_MODERN_MANAGER OFF)
+            endif()
+        endif()
+    endif()
+
+    # Add MacType Manager subdirectory
+    if(BUILD_MODERN_MANAGER)
+        add_subdirectory(src/platform/manager)
+    endif()
+endif()
+
 # Generate and install CMake config files
 set(MAC_TYPE_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/MacType)
 

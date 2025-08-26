@@ -1,0 +1,225 @@
+<!-- ModePage.xaml - Start Mode Selection Page -->
+<Page
+    x:Class="MacTypeManager.ModePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:MacTypeManager"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="16">
+
+            <!-- Page Header -->
+            <StackPanel Spacing="8">
+                <TextBlock
+                    Text="Start Mode Selection"
+                    Style="{StaticResource HeaderTextBlockStyle}"
+                    FontSize="24"
+                    FontWeight="SemiBold"/>
+                <TextBlock
+                    Text="Choose how MacType should run on your system"
+                    Style="{StaticResource BodyTextBlockStyle}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </StackPanel>
+
+            <!-- Current Status -->
+            <Border
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock
+                        Text="Current Status"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        FontSize="16"/>
+                    <Grid ColumnSpacing="16" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock
+                            Grid.Row="0" Grid.Column="0"
+                            Text="Service Status:"
+                            VerticalAlignment="Center"/>
+                        <StackPanel
+                            Grid.Row="0" Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <ProgressRing
+                                x:Name="ServiceStatusRing"
+                                Width="16" Height="16"
+                                IsActive="True"/>
+                            <TextBlock
+                                x:Name="ServiceStatusText"
+                                Text="Checking..."
+                                VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <TextBlock
+                            Grid.Row="1" Grid.Column="0"
+                            Text="Active Mode:"
+                            VerticalAlignment="Center"/>
+                        <TextBlock
+                            x:Name="ActiveModeText"
+                            Grid.Row="1" Grid.Column="1"
+                            Text="Unknown"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+
+                        <TextBlock
+                            Grid.Row="2" Grid.Column="0"
+                            Text="Injected Processes:"
+                            VerticalAlignment="Center"/>
+                        <TextBlock
+                            x:Name="InjectedProcessesText"
+                            Grid.Row="2" Grid.Column="1"
+                            Text="0"
+                            VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Mode Selection -->
+            <Border
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock
+                        Text="Available Modes"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        FontSize="16"/>
+
+                    <!-- Service Mode -->
+                    <Border
+                        x:Name="ServiceModeBorder"
+                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource AccentControlElevationBorderBrush}"
+                        BorderThickness="2"
+                        CornerRadius="8"
+                        Padding="16"
+                        Tapped="ModeBorder_Tapped">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon
+                                    Glyph="&#xE9F5;"
+                                    FontSize="24"
+                                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="4">
+                                    <TextBlock
+                                        Text="Service Mode"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        FontSize="16"/>
+                                    <TextBlock
+                                        Text="Background service with automatic font injection"
+                                        Style="{StaticResource BodyTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock
+                                Text="• Automatically starts with Windows&#x0A;• Monitors all running processes&#x0A;• Minimal system impact"
+                                Style="{StaticResource BodyTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Margin="36,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Tray Mode -->
+                    <Border
+                        x:Name="TrayModeBorder"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16"
+                        Tapped="ModeBorder_Tapped">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon
+                                    Glyph="&#xE8BB;"
+                                    FontSize="24"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="4">
+                                    <TextBlock
+                                        Text="Tray Mode"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        FontSize="16"/>
+                                    <TextBlock
+                                        Text="System tray icon with manual control"
+                                        Style="{StaticResource BodyTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock
+                                Text="• Manual control via tray icon&#x0A;• Lower resource usage&#x0A;• User-controlled injection"
+                                Style="{StaticResource BodyTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Margin="36,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Manual Mode -->
+                    <Border
+                        x:Name="ManualModeBorder"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="16"
+                        Tapped="ModeBorder_Tapped">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon
+                                    Glyph="&#xE8C8;"
+                                    FontSize="24"
+                                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <StackPanel Spacing="4">
+                                    <TextBlock
+                                        Text="Manual Mode"
+                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                        FontSize="16"/>
+                                    <TextBlock
+                                        Text="User-controlled injection via drag-and-drop"
+                                        Style="{StaticResource BodyTextBlockStyle}"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock
+                                Text="• No automatic injection&#x0A;• Drag & drop applications&#x0A;• Maximum user control"
+                                Style="{StaticResource BodyTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Margin="36,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Action Buttons -->
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button
+                    x:Name="ApplyButton"
+                    Content="Apply Mode"
+                    Click="ApplyButton_Click"
+                    Style="{StaticResource AccentButtonStyle}"
+                    MinWidth="120"/>
+                <Button
+                    x:Name="RefreshButton"
+                    Content="Refresh Status"
+                    Click="RefreshButton_Click"
+                    MinWidth="120"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
