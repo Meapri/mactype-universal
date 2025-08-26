@@ -89,7 +89,51 @@ find_package(FreeType REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
 find_package(BZip2 REQUIRED)
-find_package(detours REQUIRED)  # Windows Detours hooking library
+# Find Detours (Windows API hooking library)
+# Detours doesn't provide standard CMake config files, find manually
+find_path(DETOURS_INCLUDE_DIR detours/detours.h
+    PATHS ${CMAKE_PREFIX_PATH}
+    PATH_SUFFIXES include
+    NO_DEFAULT_PATH
+)
+
+find_library(DETOURS_LIBRARY
+    NAMES detours.lib detours
+    PATHS ${CMAKE_PREFIX_PATH}
+    PATH_SUFFIXES lib
+    NO_DEFAULT_PATH
+)
+
+if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
+    # Fallback: look in vcpkg installed directory (common paths)
+    set(VCPKG_ROOT "${CMAKE_CURRENT_BINARY_DIR}/vcpkg_installed")
+    find_path(DETOURS_INCLUDE_DIR detours/detours.h
+        PATHS
+            "${VCPKG_ROOT}/x64-windows/include"
+            "${VCPKG_ROOT}/x86-windows/include"
+            "$ENV{VCPKG_ROOT}/installed/x64-windows/include"
+            "$ENV{VCPKG_ROOT}/installed/x86-windows/include"
+        NO_DEFAULT_PATH
+    )
+    find_library(DETOURS_LIBRARY
+        NAMES detours.lib detours
+        PATHS
+            "${VCPKG_ROOT}/x64-windows/lib"
+            "${VCPKG_ROOT}/x86-windows/lib"
+            "$ENV{VCPKG_ROOT}/installed/x64-windows/lib"
+            "$ENV{VCPKG_ROOT}/installed/x86-windows/lib"
+        NO_DEFAULT_PATH
+    )
+endif()
+
+if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
+    message(FATAL_ERROR "Detours library not found. Please install detours via vcpkg.")
+endif()
+
+# Create interface library for detours
+add_library(detours INTERFACE)
+target_include_directories(detours INTERFACE ${DETOURS_INCLUDE_DIR})
+target_link_libraries(detours INTERFACE ${DETOURS_LIBRARY})
 
 # Note: Brotli is included statically in FreeType when brotli feature is enabled
 # No separate brotli linking needed
@@ -239,7 +283,7 @@ target_link_libraries(mactype PUBLIC
     PNG::PNG
     BZip2::BZip2
     nlohmann_json::nlohmann_json
-    detours::detours
+    detours
     # Windows system libraries (required for Windows API hooking)
     user32
     gdi32
