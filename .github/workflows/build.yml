@@ -220,7 +220,7 @@ jobs:
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
-        # ARM64에서는 mt64agnt 빌드 제외 (x64 mt64agnt로 커버)
+        # ARM64에서는 mt64agnt 빌드 제외 (x64 mt64agnt로 ARM64 + x64 + x86 프로세스 모두 처리)
         $buildAgentFlag = if ("${{ matrix.platform }}" -eq "ARM64") { "OFF" } else { "ON" }
         cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=$buildAgentFlag
 
