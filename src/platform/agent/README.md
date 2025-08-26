@@ -84,6 +84,36 @@ Provides encrypted inter-process communication:
 ### 4. Modern Injector (`modern_injector`)
 Performs safe DLL injection without wow64ext.
 
+## Architecture Evolution: From Legacy to Modern
+
+### Legacy MacType Structure (wow64ext dependent)
+The original MacType had three separate executables due to wow64ext limitations:
+
+**Legacy Components:**
+- `mt64agnt.exe` (32-bit) - Main agent with wow64ext for 64-bit control
+- `MacLoader.exe` (32-bit) - 32-bit process loader
+- `MacLoader64.exe` (64-bit) - 64-bit process loader
+
+**Legacy Limitations:**
+- Complex cross-architecture communication
+- wow64ext dependency for stability issues
+- Manual architecture detection and routing
+- Three separate binaries to maintain
+
+### Modern MacType Structure (wow64ext free)
+Our modernized approach uses a single intelligent agent:
+
+**Modern Components:**
+- `mt64agnt.exe` (x64/ARM64) - Universal agent with native multi-architecture support
+- `MacType*.dll` - Architecture-specific rendering engines
+- *No separate loaders needed*
+
+**Modern Advantages:**
+- Single binary handles all architectures
+- Native Windows API usage (no wow64ext)
+- Automatic architecture detection
+- Simplified deployment and maintenance
+
 ## Modern GUI Applications Plan
 
 ### MacWiz → Modern Setup Wizard (WinUI 3)
