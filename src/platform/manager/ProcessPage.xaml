@@ -11,6 +11,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -27,8 +28,86 @@
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
         </StackPanel>
 
+        <!-- Statistics -->
+        <Border Grid.Row="1" Margin="16,0,16,16"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16">
+            <Grid ColumnSpacing="24" RowSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Total Processes -->
+                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                    <TextBlock
+                        Text="Total Processes"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        FontSize="12"/>
+                    <TextBlock
+                        x:Name="TotalProcessesText"
+                        Text="0"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        FontSize="20"/>
+                </StackPanel>
+
+                <!-- Injected Processes -->
+                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
+                    <TextBlock
+                        Text="Injected"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        FontSize="12"/>
+                    <TextBlock
+                        x:Name="InjectedProcessesText"
+                        Text="0"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        FontSize="20"
+                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                </StackPanel>
+
+                <!-- x64 Processes -->
+                <StackPanel Grid.Row="0" Grid.Column="2" Spacing="4">
+                    <TextBlock
+                        Text="64-bit"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        FontSize="12"/>
+                    <TextBlock
+                        x:Name="X64ProcessesText"
+                        Text="0"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        FontSize="20"/>
+                </StackPanel>
+
+                <!-- x86 Processes -->
+                <StackPanel Grid.Row="0" Grid.Column="3" Spacing="4">
+                    <TextBlock
+                        Text="32-bit"
+                        Style="{StaticResource BodyTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        FontSize="12"/>
+                    <TextBlock
+                        x:Name="X86ProcessesText"
+                        Text="0"
+                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                        FontSize="20"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- Process List -->
-        <StackPanel Grid.Row="1" Margin="16" Spacing="16">
+        <StackPanel Grid.Row="2" Margin="16,0,16,16" Spacing="16">
             <Border
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -36,35 +115,107 @@
                 CornerRadius="8"
                 Padding="16">
                 <StackPanel Spacing="16">
-                    <TextBlock
-                        Text="Running Processes"
-                        Style="{StaticResource BodyStrongTextBlockStyle}"
-                        FontSize="16"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock
+                            Text="Running Processes"
+                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                            FontSize="16"/>
+                        <ProgressRing
+                            x:Name="RefreshProgressRing"
+                            Width="16" Height="16"
+                            IsActive="False"/>
+                    </StackPanel>
 
-                    <!-- Process list will be implemented here -->
+                    <!-- Process ListView -->
                     <ListView
                         x:Name="ProcessListView"
-                        Height="300"
-                        SelectionMode="Single">
+                        Height="400"
+                        SelectionMode="Multiple"
+                        IsMultiSelectCheckBoxEnabled="True">
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="12" Padding="8">
-                                    <FontIcon Glyph="&#xE8BB;" FontSize="16"/>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="Process Name" FontWeight="SemiBold"/>
-                                        <TextBlock Text="PID: 1234 | Status: Injected"
+                                <Grid ColumnSpacing="12" RowSpacing="4" Padding="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Icon -->
+                                    <FontIcon Grid.Row="0" Grid.Column="0" Grid.RowSpan="2"
+                                              Glyph="&#xE8BB;" FontSize="20"
+                                              VerticalAlignment="Center"/>
+
+                                    <!-- Process Name and PID -->
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="{Binding ProcessName}"
+                                                 FontWeight="SemiBold" FontSize="14"/>
+                                        <TextBlock Text="{Binding ProcessId}"
                                                  FontSize="12"
                                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                     </StackPanel>
-                                </StackPanel>
+
+                                    <!-- Architecture -->
+                                    <Border Grid.Row="0" Grid.Column="2"
+                                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                            CornerRadius="4" Padding="4,2">
+                                        <TextBlock Text="{Binding Architecture}"
+                                                 FontSize="10" FontWeight="SemiBold"
+                                                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                    </Border>
+
+                                    <!-- Injection Status -->
+                                    <Border Grid.Row="0" Grid.Column="3"
+                                            Background="{Binding InjectionStatusColor}"
+                                            CornerRadius="4" Padding="4,2">
+                                        <TextBlock Text="{Binding InjectionStatus}"
+                                                 FontSize="10" FontWeight="SemiBold"/>
+                                    </Border>
+
+                                    <!-- Memory/CPU -->
+                                    <StackPanel Grid.Row="0" Grid.Column="4" Spacing="2" HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding MemoryUsage}"
+                                                 FontSize="12" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding CpuUsage}"
+                                                 FontSize="10"
+                                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+
+                                    <!-- Executable Path -->
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="4"
+                                             Text="{Binding ExecutablePath}"
+                                             FontSize="10"
+                                             Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                             TextWrapping="Wrap"/>
+                                </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
 
+                    <!-- Action Buttons -->
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Refresh" MinWidth="80"/>
-                        <Button Content="Inject Selected" MinWidth="120" Style="{StaticResource AccentButtonStyle}"/>
-                        <Button Content="Batch Inject" MinWidth="100"/>
+                        <Button
+                            x:Name="RefreshButton"
+                            Content="Refresh"
+                            Click="RefreshButton_Click"
+                            MinWidth="80"/>
+                        <Button
+                            x:Name="InjectSelectedButton"
+                            Content="Inject Selected"
+                            Click="InjectSelectedButton_Click"
+                            Style="{StaticResource AccentButtonStyle}"
+                            MinWidth="120"/>
+                        <Button
+                            x:Name="BatchInjectButton"
+                            Content="Batch Inject All"
+                            Click="BatchInjectButton_Click"
+                            MinWidth="120"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -9,70 +9,225 @@
     mc:Ignorable="d">
 
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1*"/>
-            <ColumnDefinition Width="1*"/>
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!-- Style Gallery -->
-        <StackPanel Grid.Column="0" Margin="16" Spacing="16">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="16,16,16,8">
             <TextBlock
-                Text="Style Gallery"
+                Text="Styles & Profiles"
                 Style="{StaticResource HeaderTextBlockStyle}"
-                FontSize="20"
+                FontSize="24"
                 FontWeight="SemiBold"/>
             <TextBlock
-                Text="Choose from built-in rendering styles"
+                Text="Choose rendering styles and manage profiles"
                 Style="{StaticResource BodyTextBlockStyle}"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-
-            <Border
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16">
-                <GridView
-                    x:Name="StyleGridView"
-                    ItemTemplate="{StaticResource StyleItemTemplate}"
-                    SelectionMode="Single"
-                    IsItemClickEnabled="True">
-                    <!-- Style items will be populated programmatically -->
-                </GridView>
-            </Border>
         </StackPanel>
 
-        <!-- Preview Panel -->
-        <StackPanel Grid.Column="1" Margin="16" Spacing="16">
-            <TextBlock
-                Text="Live Preview"
-                Style="{StaticResource HeaderTextBlockStyle}"
-                FontSize="20"
-                FontWeight="SemiBold"/>
-            <TextBlock
-                Text="See how the selected style looks"
-                Style="{StaticResource BodyTextBlockStyle}"
-                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
 
-            <Border
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16"
-                Height="300">
-                <ScrollViewer>
-                    <StackPanel x:Name="PreviewPanel" Spacing="12">
-                        <!-- Preview content will be generated here -->
-                        <TextBlock Text="Preview will be implemented here" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            <!-- Style Gallery -->
+            <StackPanel Grid.Column="0" Margin="16,0,8,16" Spacing="16">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock
+                        Text="Style Gallery"
+                        Style="{StaticResource HeaderTextBlockStyle}"
+                        FontSize="18"
+                        FontWeight="SemiBold"/>
+                    <ProgressRing
+                        x:Name="StyleLoadingRing"
+                        Width="16" Height="16"
+                        IsActive="False"/>
+                </StackPanel>
+
+                <!-- Category Filter -->
+                <ComboBox
+                    x:Name="CategoryFilterComboBox"
+                    Header="Filter by Category"
+                    PlaceholderText="All Categories"
+                    SelectionChanged="CategoryFilterComboBox_SelectionChanged">
+                    <ComboBoxItem Content="All Categories" Tag="all"/>
+                    <ComboBoxItem Content="Built-in" Tag="builtin"/>
+                    <ComboBoxItem Content="Clean" Tag="clean"/>
+                    <ComboBoxItem Content="CRT" Tag="crt"/>
+                    <ComboBoxItem Content="LCD" Tag="lcd"/>
+                    <ComboBoxItem Content="Platform" Tag="platform"/>
+                </ComboBox>
+
+                <!-- Style Grid -->
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Height="500">
+                    <GridView
+                        x:Name="StyleGridView"
+                        SelectionMode="Single"
+                        IsItemClickEnabled="True"
+                        ItemTemplate="{StaticResource StyleItemTemplate}">
+                        <!-- Style items will be populated programmatically -->
+                    </GridView>
+                </Border>
+
+                <!-- Style Info -->
+                <Border
+                    x:Name="SelectedStyleInfoBorder"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Visibility="Collapsed">
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            x:Name="SelectedStyleNameText"
+                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                            FontSize="16"/>
+                        <TextBlock
+                            x:Name="SelectedStyleDescriptionText"
+                            Style="{StaticResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap"/>
+                        <TextBlock
+                            x:Name="SelectedStyleCategoryText"
+                            Style="{StaticResource BodyTextBlockStyle}"
+                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                            FontSize="12"/>
                     </StackPanel>
-                </ScrollViewer>
-            </Border>
-
-            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                <Button Content="Apply Style" Style="{StaticResource AccentButtonStyle}" MinWidth="100"/>
-                <Button Content="Save Profile" MinWidth="100"/>
+                </Border>
             </StackPanel>
-        </StackPanel>
+
+            <!-- Preview Panel -->
+            <StackPanel Grid.Column="1" Margin="8,0,16,16" Spacing="16">
+                <TextBlock
+                    Text="Live Preview"
+                    Style="{StaticResource HeaderTextBlockStyle}"
+                    FontSize="18"
+                    FontWeight="SemiBold"/>
+
+                <!-- Preview Controls -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ToggleButton
+                        x:Name="PreviewToggleButton"
+                        Content="Preview Mode"
+                        IsChecked="{x:Bind m_isPreviewMode, Mode=TwoWay}"
+                        Click="PreviewToggleButton_Click"/>
+                    <Button
+                        x:Name="RefreshPreviewButton"
+                        Content="Refresh"
+                        Click="RefreshPreviewButton_Click"/>
+                </StackPanel>
+
+                <!-- Preview Area -->
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Height="400">
+                    <ScrollViewer>
+                        <StackPanel x:Name="PreviewPanel" Spacing="16">
+                            <!-- Sample Text Preview -->
+                            <StackPanel Spacing="8">
+                                <TextBlock
+                                    Text="Sample Text Preview"
+                                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                                    FontSize="14"/>
+                                <Border
+                                    Background="White"
+                                    BorderBrush="Gray"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="12">
+                                    <TextBlock
+                                        x:Name="PreviewTextBlock"
+                                        Text="The quick brown fox jumps over the lazy dog&#x0A;ABCDEFGHIJKLMNOPQRSTUVWXYZ&#x0A;abcdefghijklmnopqrstuvwxyz&#x0A;0123456789"
+                                        FontSize="16"
+                                        Foreground="Black"
+                                        TextWrapping="Wrap"
+                                        LineHeight="24"/>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Style Comparison -->
+                            <StackPanel Spacing="8">
+                                <TextBlock
+                                    Text="Style Comparison"
+                                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                                    FontSize="14"/>
+                                <Border
+                                    Background="White"
+                                    BorderBrush="Gray"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1*"/>
+                                            <ColumnDefinition Width="1*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock
+                                            Grid.Row="0" Grid.Column="0"
+                                            Text="Current:"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                                            FontSize="12"/>
+                                        <TextBlock
+                                            Grid.Row="0" Grid.Column="1"
+                                            Text="Preview:"
+                                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                                            FontSize="12"
+                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+
+                                        <TextBlock
+                                            Grid.Row="1" Grid.Column="0"
+                                            x:Name="CurrentStyleTextBlock"
+                                            Text="Current style text"
+                                            FontSize="14"
+                                            Foreground="Black"/>
+                                        <TextBlock
+                                            Grid.Row="1" Grid.Column="1"
+                                            x:Name="PreviewStyleTextBlock"
+                                            Text="Preview style text"
+                                            FontSize="14"
+                                            Foreground="Black"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Action Buttons -->
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button
+                        x:Name="ApplyStyleButton"
+                        Content="Apply Style"
+                        Click="ApplyStyleButton_Click"
+                        Style="{StaticResource AccentButtonStyle}"
+                        MinWidth="120"/>
+                    <Button
+                        x:Name="SaveProfileButton"
+                        Content="Save Profile"
+                        Click="SaveProfileButton_Click"
+                        MinWidth="120"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "ModePage.xaml.g.h"
+#include "MacTypeCommunication.h"
 
 namespace winrt::MacTypeManager::implementation
 {
@@ -16,31 +17,32 @@ namespace winrt::MacTypeManager::implementation
 
     private:
         // Mode management
-        enum class MacTypeMode
-        {
-            Service,
-            Tray,
-            Manual,
-            Unknown
-        };
+        MacTypeManager::MacTypeMode m_selectedMode = MacTypeManager::MacTypeMode::Unknown;
+        MacTypeManager::MacTypeMode m_currentMode = MacTypeManager::MacTypeMode::Unknown;
 
-        MacTypeMode m_selectedMode = MacTypeMode::Unknown;
-        MacTypeMode m_currentMode = MacTypeMode::Unknown;
+        // Communication
+        std::shared_ptr<MacTypeManager::MacTypeCommunicator> m_communicator;
 
         // UI updates
-        void UpdateModeSelection(MacTypeMode mode);
+        void UpdateModeSelection(MacTypeManager::MacTypeMode mode);
         void UpdateStatusDisplay();
         void UpdateModeBorders();
 
         // MacType communication
-        bool CheckMacTypeService();
-        bool ApplySelectedMode();
-        MacTypeMode GetCurrentMode();
-        winrt::hstring GetModeDisplayName(MacTypeMode mode);
+        winrt::Windows::Foundation::IAsyncAction InitializeCommunicationAsync();
+        winrt::Windows::Foundation::IAsyncAction CheckMacTypeServiceAsync();
+        winrt::Windows::Foundation::IAsyncAction ApplySelectedModeAsync();
+        winrt::Windows::Foundation::IAsyncAction GetCurrentModeAsync();
+        winrt::hstring GetModeDisplayName(MacTypeManager::MacTypeMode mode);
 
         // Visual feedback
-        void HighlightModeBorder(MacTypeMode mode);
+        void HighlightModeBorder(MacTypeManager::MacTypeMode mode);
         void ResetModeBorders();
+        void SetButtonsEnabled(bool enabled);
+        void ShowStatusMessage(winrt::hstring message, bool isError = false);
+
+        // Initialization
+        winrt::Windows::Foundation::IAsyncAction InitializePageAsync();
     };
 }
 

@@ -5,11 +5,38 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <codecvt>
+#include <locale>
+
+// Named Pipe constants
+#define MT_AGENT_PIPE_NAME L"\\\\.\\pipe\\MacTypeAgent"
+#define PIPE_TIMEOUT 5000  // 5 seconds
 
 namespace MacTypeManager
 {
     // Global communicator instance
     std::unique_ptr<MacTypeCommunicator> g_communicator;
+
+    // Message types for communication with mt64agnt
+    enum class AgentMessageType
+    {
+        GetStatus = 1,
+        SetMode = 2,
+        GetProcessList = 3,
+        InjectProcess = 4,
+        RemoveInjection = 5,
+        GetStyles = 6,
+        ApplyStyle = 7,
+        HealthCheck = 8
+    };
+
+    // Message structure for named pipe communication
+    struct PipeMessage
+    {
+        AgentMessageType type;
+        DWORD dataSize;
+        // Followed by data[dataSize]
+    };
 
     MacTypeCommunicator::MacTypeCommunicator()
         : m_isConnected(false)
@@ -30,17 +57,12 @@ namespace MacTypeManager
             return true;
         }
 
-        // Try to establish named pipe connection with mt64agnt
-        // TODO: Implement actual named pipe connection
-        // For now, simulate connection
-        m_isConnected = true;
-
-        return true;
+        return EstablishNamedPipeConnection();
     }
 
     void MacTypeCommunicator::Disconnect()
     {
-        if (m_pipeHandle)
+        if (m_pipeHandle && m_pipeHandle != INVALID_HANDLE_VALUE)
         {
             CloseHandle(m_pipeHandle);
             m_pipeHandle = nullptr;
@@ -50,7 +72,7 @@ namespace MacTypeManager
 
     bool MacTypeCommunicator::IsConnected() const
     {
-        return m_isConnected;
+        return m_isConnected && m_pipeHandle != nullptr;
     }
 
     bool MacTypeCommunicator::SetMode(MacTypeMode mode)
@@ -60,10 +82,18 @@ namespace MacTypeManager
             return false;
         }
 
-        // TODO: Send mode change command to mt64agnt
-        // For now, just update local state
-        m_currentMode = mode;
-        return true;
+        // Send mode change command
+        std::string data = std::to_string(static_cast<int>(mode));
+        auto response = SendCommand(AgentMessageType::SetMode, data);
+
+        if (!response.empty())
+        {
+            // Update local state on success
+            m_currentMode = mode;
+            return true;
+        }
+
+        return false;
     }
 
     MacTypeMode MacTypeCommunicator::GetCurrentMode()
@@ -73,16 +103,36 @@ namespace MacTypeManager
             return MacTypeMode::Unknown;
         }
 
-        // TODO: Query current mode from mt64agnt
-        // For now, return current local state
-        return m_currentMode;
+        // Query current mode from mt64agnt
+        auto response = SendCommand(AgentMessageType::GetStatus, "");
+
+        if (!response.empty())
+        {
+            try
+            {
+                int modeInt = std::stoi(response);
+                return static_cast<MacTypeMode>(modeInt);
+            }
+            catch (const std::exception&)
+            {
+                return MacTypeMode::Unknown;
+            }
+        }
+
+        return MacTypeMode::Unknown;
     }
 
     bool MacTypeCommunicator::IsServiceRunning()
     {
-        // TODO: Check if mt64agnt service is running
-        // For now, return connected status
-        return m_isConnected;
+        if (!m_isConnected)
+        {
+            return false;
+        }
+
+        // Send health check
+        auto response = SendCommand(AgentMessageType::HealthCheck, "");
+
+        return !response.empty() && response == "OK";
     }
 
     std::vector<ProcessInfo> MacTypeCommunicator::GetProcessList()
@@ -94,18 +144,14 @@ namespace MacTypeManager
             return processes;
         }
 
-        // TODO: Get actual process list from mt64agnt
-        // For now, return mock data
-        ProcessInfo mockProcess;
-        mockProcess.processId = 1234;
-        mockProcess.processName = L"notepad.exe";
-        mockProcess.executablePath = L"C:\\Windows\\System32\\notepad.exe";
-        mockProcess.is64Bit = true;
-        mockProcess.isInjected = false;
-        mockProcess.memoryUsage = 15.2;
-        mockProcess.cpuUsage = 0.1;
+        // Get process list from mt64agnt
+        auto response = SendCommand(AgentMessageType::GetProcessList, "");
 
-        processes.push_back(mockProcess);
+        if (!response.empty())
+        {
+            processes = ParseProcessList(response);
+        }
+
         return processes;
     }
 
@@ -116,8 +162,10 @@ namespace MacTypeManager
             return false;
         }
 
-        // TODO: Send injection command to mt64agnt
-        return true;
+        std::string data = std::to_string(processId);
+        auto response = SendCommand(AgentMessageType::InjectProcess, data);
+
+        return !response.empty() && response == "SUCCESS";
     }
 
     bool MacTypeCommunicator::RemoveInjection(DWORD processId)
@@ -127,44 +175,47 @@ namespace MacTypeManager
             return false;
         }
 
-        // TODO: Send remove injection command to mt64agnt
-        return true;
+        std::string data = std::to_string(processId);
+        auto response = SendCommand(AgentMessageType::RemoveInjection, data);
+
+        return !response.empty() && response == "SUCCESS";
     }
 
     bool MacTypeCommunicator::BatchInject(const std::vector<DWORD>& processIds)
     {
-        if (!m_isConnected)
+        if (!m_isConnected || processIds.empty())
         {
             return false;
         }
 
-        // TODO: Send batch injection command to mt64agnt
-        return true;
+        // Convert process IDs to comma-separated string
+        std::stringstream ss;
+        for (size_t i = 0; i < processIds.size(); ++i)
+        {
+            if (i > 0) ss << ",";
+            ss << processIds[i];
+        }
+
+        auto response = SendCommand(AgentMessageType::InjectProcess, ss.str());
+        return !response.empty() && response == "SUCCESS";
     }
 
     std::vector<StyleInfo> MacTypeCommunicator::GetAvailableStyles()
     {
         std::vector<StyleInfo> styles;
 
-        // TODO: Get actual style list from MacType
-        // For now, return mock data
-        StyleInfo cleanStyle;
-        cleanStyle.name = "Clean";
-        cleanStyle.description = "Clean and sharp font rendering";
-        cleanStyle.category = "Built-in";
-        cleanStyle.isBuiltIn = true;
-        cleanStyle.previewText = "The quick brown fox jumps over the lazy dog";
+        // Get style list from MacType
+        auto response = SendCommand(AgentMessageType::GetStyles, "");
 
-        styles.push_back(cleanStyle);
-
-        StyleInfo crtStyle;
-        crtStyle.name = "CRT";
-        crtStyle.description = "Cathode Ray Tube style with scanlines";
-        crtStyle.category = "Built-in";
-        crtStyle.isBuiltIn = true;
-        crtStyle.previewText = "Retro CRT display simulation";
-
-        styles.push_back(crtStyle);
+        if (!response.empty())
+        {
+            styles = ParseStyleList(response);
+        }
+        else
+        {
+            // Return default styles if communication fails
+            styles = GetDefaultStyles();
+        }
 
         return styles;
     }
@@ -176,19 +227,19 @@ namespace MacTypeManager
             return false;
         }
 
-        // TODO: Send style application command to MacType
-        return true;
+        auto response = SendCommand(AgentMessageType::ApplyStyle, styleName);
+        return !response.empty() && response == "SUCCESS";
     }
 
     bool MacTypeCommunicator::SaveProfile(const std::string& profileName)
     {
-        // TODO: Save current settings as profile
+        // TODO: Implement profile saving
         return true;
     }
 
     bool MacTypeCommunicator::LoadProfile(const std::string& profileName)
     {
-        // TODO: Load and apply profile settings
+        // TODO: Implement profile loading
         return true;
     }
 
@@ -202,36 +253,231 @@ namespace MacTypeManager
         m_modeCallback = callback;
     }
 
-    bool MacTypeCommunicator::SendCommand(const std::string& command, const std::string& data)
+    std::string MacTypeCommunicator::SendCommand(AgentMessageType type, const std::string& data)
     {
-        // TODO: Implement named pipe communication with mt64agnt
-        return false;
+        if (!m_isConnected || !m_pipeHandle)
+        {
+            return "";
+        }
+
+        try
+        {
+            // Prepare message
+            PipeMessage message;
+            message.type = type;
+            message.dataSize = static_cast<DWORD>(data.size());
+
+            // Send message header
+            DWORD bytesWritten;
+            if (!WriteFile(m_pipeHandle, &message, sizeof(message), &bytesWritten, nullptr))
+            {
+                return "";
+            }
+
+            // Send message data if any
+            if (message.dataSize > 0)
+            {
+                if (!WriteFile(m_pipeHandle, data.c_str(), message.dataSize, &bytesWritten, nullptr))
+                {
+                    return "";
+                }
+            }
+
+            // Read response
+            return ReceiveResponse();
+        }
+        catch (const std::exception&)
+        {
+            return "";
+        }
     }
 
     std::string MacTypeCommunicator::ReceiveResponse()
     {
-        // TODO: Receive response from mt64agnt
-        return "";
+        if (!m_pipeHandle)
+        {
+            return "";
+        }
+
+        try
+        {
+            // Read response header
+            PipeMessage responseHeader;
+            DWORD bytesRead;
+            if (!ReadFile(m_pipeHandle, &responseHeader, sizeof(responseHeader), &bytesRead, nullptr))
+            {
+                return "";
+            }
+
+            // Read response data
+            if (responseHeader.dataSize > 0)
+            {
+                std::vector<char> buffer(responseHeader.dataSize + 1, 0);
+                if (!ReadFile(m_pipeHandle, buffer.data(), responseHeader.dataSize, &bytesRead, nullptr))
+                {
+                    return "";
+                }
+                return std::string(buffer.data());
+            }
+
+            return "";
+        }
+        catch (const std::exception&)
+        {
+            return "";
+        }
     }
 
     bool MacTypeCommunicator::EstablishNamedPipeConnection()
     {
-        // TODO: Connect to mt64agnt's named pipe
-        return false;
+        try
+        {
+            // Try to connect to mt64agnt's named pipe
+            m_pipeHandle = CreateFileW(
+                MT_AGENT_PIPE_NAME,
+                GENERIC_READ | GENERIC_WRITE,
+                0,
+                nullptr,
+                OPEN_EXISTING,
+                0,
+                nullptr
+            );
+
+            if (m_pipeHandle == INVALID_HANDLE_VALUE)
+            {
+                return false;
+            }
+
+            // Set pipe mode to message mode
+            DWORD mode = PIPE_READMODE_MESSAGE | PIPE_WAIT;
+            if (!SetNamedPipeHandleState(m_pipeHandle, &mode, nullptr, nullptr))
+            {
+                CloseHandle(m_pipeHandle);
+                m_pipeHandle = nullptr;
+                return false;
+            }
+
+            // Set read timeout
+            COMMTIMEOUTS timeouts;
+            timeouts.ReadIntervalTimeout = PIPE_TIMEOUT;
+            timeouts.ReadTotalTimeoutMultiplier = 0;
+            timeouts.ReadTotalTimeoutConstant = PIPE_TIMEOUT;
+            timeouts.WriteTotalTimeoutMultiplier = 0;
+            timeouts.WriteTotalTimeoutConstant = PIPE_TIMEOUT;
+
+            if (!SetCommTimeouts(m_pipeHandle, &timeouts))
+            {
+                CloseHandle(m_pipeHandle);
+                m_pipeHandle = nullptr;
+                return false;
+            }
+
+            m_isConnected = true;
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            if (m_pipeHandle)
+            {
+                CloseHandle(m_pipeHandle);
+                m_pipeHandle = nullptr;
+            }
+            return false;
+        }
     }
 
-    ProcessInfo MacTypeCommunicator::ParseProcessInfo(const std::string& data)
+    std::vector<ProcessInfo> MacTypeCommunicator::ParseProcessList(const std::string& data)
     {
-        ProcessInfo info;
-        // TODO: Parse process information from response
-        return info;
+        std::vector<ProcessInfo> processes;
+        std::vector<std::string> lines = SplitString(data, '\n');
+
+        for (const auto& line : lines)
+        {
+            if (line.empty()) continue;
+
+            std::vector<std::string> fields = SplitString(line, '|');
+            if (fields.size() >= 6)
+            {
+                ProcessInfo info;
+                try
+                {
+                    info.processId = std::stoul(fields[0]);
+                    info.processName = StringToWString(fields[1]);
+                    info.executablePath = StringToWString(fields[2]);
+                    info.is64Bit = fields[3] == "1";
+                    info.isInjected = fields[4] == "1";
+                    info.memoryUsage = std::stod(fields[5]);
+                    if (fields.size() >= 7)
+                    {
+                        info.cpuUsage = std::stod(fields[6]);
+                    }
+                    processes.push_back(info);
+                }
+                catch (const std::exception&)
+                {
+                    // Skip malformed entries
+                    continue;
+                }
+            }
+        }
+
+        return processes;
     }
 
-    StyleInfo MacTypeCommunicator::ParseStyleInfo(const std::string& data)
+    std::vector<StyleInfo> MacTypeCommunicator::ParseStyleList(const std::string& data)
     {
-        StyleInfo info;
-        // TODO: Parse style information from response
-        return info;
+        std::vector<StyleInfo> styles;
+        std::vector<std::string> lines = SplitString(data, '\n');
+
+        for (const auto& line : lines)
+        {
+            if (line.empty()) continue;
+
+            std::vector<std::string> fields = SplitString(line, '|');
+            if (fields.size() >= 5)
+            {
+                StyleInfo info;
+                info.name = fields[0];
+                info.description = fields[1];
+                info.category = fields[2];
+                info.isBuiltIn = fields[3] == "1";
+                info.previewText = fields[4];
+                styles.push_back(info);
+            }
+        }
+
+        return styles;
+    }
+
+    std::vector<StyleInfo> MacTypeCommunicator::GetDefaultStyles()
+    {
+        std::vector<StyleInfo> styles;
+
+        StyleInfo cleanStyle;
+        cleanStyle.name = "Clean";
+        cleanStyle.description = "Clean and sharp font rendering";
+        cleanStyle.category = "Built-in";
+        cleanStyle.isBuiltIn = true;
+        cleanStyle.previewText = "The quick brown fox jumps over the lazy dog";
+        styles.push_back(cleanStyle);
+
+        StyleInfo crtStyle;
+        crtStyle.name = "CRT";
+        crtStyle.description = "Cathode Ray Tube style with scanlines";
+        crtStyle.category = "Built-in";
+        crtStyle.isBuiltIn = true;
+        crtStyle.previewText = "Retro CRT display simulation";
+        styles.push_back(crtStyle);
+
+        StyleInfo lcdStyle;
+        lcdStyle.name = "LCD";
+        lcdStyle.description = "Subpixel rendering for LCD displays";
+        lcdStyle.category = "Built-in";
+        lcdStyle.isBuiltIn = true;
+        lcdStyle.previewText = "Enhanced LCD display optimization";
+        styles.push_back(lcdStyle);
+
+        return styles;
     }
 
     std::vector<std::string> MacTypeCommunicator::SplitString(const std::string& str, char delimiter)
@@ -244,5 +490,25 @@ namespace MacTypeManager
             tokens.push_back(token);
         }
         return tokens;
+    }
+
+    std::wstring MacTypeCommunicator::StringToWString(const std::string& str)
+    {
+        try
+        {
+            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+            return converter.from_bytes(str);
+        }
+        catch (const std::exception&)
+        {
+            // Fallback for non-UTF8 strings
+            std::wstring result;
+            result.reserve(str.size());
+            for (char c : str)
+            {
+                result.push_back(static_cast<wchar_t>(c));
+            }
+            return result;
+        }
     }
 }
