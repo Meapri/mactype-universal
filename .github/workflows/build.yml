@@ -166,9 +166,9 @@ jobs:
         retention-days: 30
         if-no-files-found: error
 
-  # 플랫폼별 Agent 빌드 (x64, ARM64만)
-  build-agents:
-    name: Build Agents ${{ matrix.platform }}
+  # 플랫폼별 빌드 (x86 코어 DLL + x64/ARM64 Agents)
+  build-platforms:
+    name: Build ${{ matrix.platform }} (${{ matrix.type }})
     runs-on: windows-latest
     needs: setup-environment
     timeout-minutes: 20
@@ -176,7 +176,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x64, ARM64]  # x86 제외 (이전 결정에 따라)
+        include:
+          - platform: x86
+            type: "Core DLL only"
+            build_agent: "OFF"
+          - platform: x64
+            type: "Agent + Core"
+            build_agent: "ON"
+          - platform: ARM64
+            type: "Agent + Core"
+            build_agent: "ON"
         configuration: [Release]
 
     steps:
@@ -195,16 +204,17 @@ jobs:
       run: |
         $triplet = switch ("${{ matrix.platform }}") {
             "x64" { "x64-windows" }
+            "x86" { "x86-windows" }
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
 
         Write-Host "Installing dependencies for ${{ matrix.platform }} ($triplet)..." -ForegroundColor Cyan
-        .\vcpkg\vcpkg.exe install --triplet $triplet --binarycaching --only-downloads
+        .\vcpkg\vcpkg.exe install --triplet $triplet --binarycaching
 
-    - name: Configure and Build Agent
+    - name: Configure and Build Platform
       run: |
-        Write-Host "=== Building MacType Agent for ${{ matrix.platform }} ===" -ForegroundColor Green
+        Write-Host "=== Building MacType ${{ matrix.type }} for ${{ matrix.platform }} ===" -ForegroundColor Green
 
         if (Test-Path "build") {
           Remove-Item -Recurse -Force build
@@ -212,36 +222,38 @@ jobs:
         mkdir build
         cd build
 
-        # 플랫폼별 설정 (단순화)
+        # 플랫폼별 설정
         $generatorPlatform = switch ("${{ matrix.platform }}") {
             "x64" { "x64" }
+            "x86" { "Win32" }
             "ARM64" { "ARM64" }
             default { "x64" }
         }
         $vcpkgTriplet = switch ("${{ matrix.platform }}") {
             "x64" { "x64-windows" }
+            "x86" { "x86-windows" }
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
 
         # CMake 구성
-        Write-Host "Configuring for $generatorPlatform..." -ForegroundColor Cyan
+        Write-Host "Configuring ${{ matrix.platform }} ($generatorPlatform)..." -ForegroundColor Cyan
         cmake .. `
           -G Ninja `
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} `
           -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform `
           -DCMAKE_TOOLCHAIN_FILE="$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake" `
           -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
-          -DBUILD_MODERN_AGENT=ON `
+          -DBUILD_MODERN_AGENT=${{ matrix.build_agent }} `
           -DCMAKE_CXX_FLAGS="/MP /O2"
 
         # 병렬 빌드
-        Write-Host "Building Agent..." -ForegroundColor Cyan
+        Write-Host "Building ${{ matrix.type }}..." -ForegroundColor Cyan
         cmake --build . --config ${{ matrix.configuration }} --parallel $env:NUMBER_OF_PROCESSORS
 
-    - name: Create Agent Package
+    - name: Create Platform Package
       run: |
-        Write-Host "Creating Agent package..." -ForegroundColor Cyan
+        Write-Host "Creating ${{ matrix.platform }} package..." -ForegroundColor Cyan
         cd build
 
         $files = Get-ChildItem -Path "." -Include "*.exe", "*.dll" -Recurse
@@ -271,7 +283,7 @@ jobs:
   create-release:
     name: Create Release Packages
     runs-on: windows-latest
-    needs: [build-manager, build-agents]
+    needs: [build-manager, build-platforms]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 15
 

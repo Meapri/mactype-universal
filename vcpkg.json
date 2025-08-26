@@ -23,7 +23,7 @@
     "brotli",
     "bzip2",
     "gtest",
-    "microsoft.windowsappsdk"
+    "microsoft-windowsappsdk"
   ],
 
   "features": {

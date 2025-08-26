@@ -3,7 +3,8 @@
     {
       "kind": "git",
       "repository": "https://github.com/Microsoft/vcpkg",
-      "baseline": "2024.07.12"
+      "baseline": "2024.07.12",
+      "packages": []
     }
   ],
   "overlay-ports": [],
