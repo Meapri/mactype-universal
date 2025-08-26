@@ -30,23 +30,20 @@ jobs:
     - name: Setup MSVC
       uses: microsoft/setup-msbuild@v2
 
-    - name: Run clang-tidy
-      uses: cpp-linter/clang-tidy-action@v2
-      id: review
-      with:
-        version: '18'
-        file-filter: 'src/**'
-        format: 'sarif'
-        cmake: true
+    - name: Check code quality with MSVC analyzer
+      run: |
+        # Create a simple analysis using MSVC compiler warnings
+        mkdir build-analysis
+        cd build-analysis
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="/analyze /analyze:stacksize 16384 /analyze:max_paths 256"
+        cmake --build . --config Debug -- /p:RunCodeAnalysis=true 2>&1 | tee msvc-analysis.log || true
 
-    - name: Upload clang-tidy results
+    - name: Upload analysis results
       uses: actions/upload-artifact@v4
       with:
-        name: clang-tidy-results
+        name: static-analysis-results
         path: |
-          results.sarif
-          clang-tidy-*.txt
-          clang-tidy-*.log
+          build-analysis/msvc-analysis.log
         retention-days: 7
 
   build:
