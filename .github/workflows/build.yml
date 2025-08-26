@@ -195,7 +195,7 @@ jobs:
             exit 1
           }
 
-          Write-Host "✓ $triplet: FreeType found at $freetypeLib" -ForegroundColor Green
+          Write-Host "✓ ${triplet}: FreeType found at $freetypeLib" -ForegroundColor Green
         }
 
         Write-Host "Environment setup completed successfully" -ForegroundColor Green
@@ -485,7 +485,7 @@ jobs:
             exit 1
           }
 
-          Write-Host "✓ vcpkg installed for $($plat.Name): $vcpkgInstalled" -ForegroundColor Green
+          Write-Host "✓ vcpkg installed for ${plat.Name}: $vcpkgInstalled" -ForegroundColor Green
 
           # Verify FreeType exists for this triplet
           $freetypeLib = "$vcpkgInstalled\lib\freetype.lib"
@@ -496,7 +496,7 @@ jobs:
             exit 1
           }
 
-          Write-Host "✓ FreeType found for $($plat.Name): $freetypeLib" -ForegroundColor Green
+          Write-Host "✓ FreeType found for ${plat.Name}: $freetypeLib" -ForegroundColor Green
 
           if ($plat.Platform -eq "Win32") {
             cmake .. -G "Visual Studio 17 2022" -A Win32 `
