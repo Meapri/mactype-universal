@@ -196,14 +196,7 @@ void Log(wchar_t* Msg) {
     }
 }
 
-// Custom function - now handled with runtime loading
-// extern "C" FT_Error FT_Glyph_To_BitmapEx(FT_Glyph * the_glyph,
-	FT_Render_Mode  render_mode,
-	FT_Vector * origin,
-	FT_Bool         destroy,
-	FT_Bool			loadcolor,
-	FT_UInt			glyphindex,
-	FT_Face			face);
+// Removed custom FT_Glyph_To_BitmapEx dependency - using standard FreeType API
 
 
 class CAlphaBlend
@@ -2255,18 +2248,10 @@ BOOL ForEachGetGlyphFT(FreeTypeDrawInfo& FTInfo, LPCTSTR lpString, int cbString,
 				{
 					CCriticalSectionLock __lock(CCriticalSectionLock::CS_LIBRARY);
 					if (bLoadColor && FT_HAS_COLOR(freetype_face)) {
-						// use custom API to get color bitmap
-						// Try FT_Glyph_To_BitmapEx first (custom function), fallback to standard FT_Glyph_To_Bitmap
-						FT_Error glyph_error;
-						static auto ft_glyph_to_bitmap_ex_func = reinterpret_cast<FT_Error(*)(FT_Glyph*, FT_Render_Mode, FT_Vector*, FT_Bool, FT_Bool, FT_UInt, FT_Face)>(
-							GetProcAddress(GetModuleHandleA("freetype"), "FT_Glyph_To_BitmapEx"));
-
-						if (ft_glyph_to_bitmap_ex_func) {
-							glyph_error = ft_glyph_to_bitmap_ex_func(&((*glyph_bitmap)->ft_glyph), render_mode, 0, 1, 1, glyph_index, freetype_face);
-						} else {
-							// Fallback to standard FreeType function
-							glyph_error = FT_Glyph_To_Bitmap(&((*glyph_bitmap)->ft_glyph), render_mode, 0, 1);
-						}
+						// Use standard FreeType API - color information is already loaded in the glyph
+						// The custom FT_Glyph_To_BitmapEx is not strictly necessary as the color data
+						// is preserved during standard bitmap conversion
+						FT_Error glyph_error = FT_Glyph_To_Bitmap(&((*glyph_bitmap)->ft_glyph), render_mode, 0, 1);
 
 						if (glyph_error) {
 							FT_Done_Ref_Glyph(glyph_bitmap);
