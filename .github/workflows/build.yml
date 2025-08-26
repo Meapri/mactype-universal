@@ -35,9 +35,9 @@ jobs:
       uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Setup Windows App SDK
-      uses: microsoft/setup-windows-appsdk@main
-      with:
-        version: '1.4'
+      run: |
+        Write-Host "Installing Windows App SDK via Chocolatey..." -ForegroundColor Green
+        choco install microsoft-windowsappsdk --version=1.4.231008000 --yes --no-progress --force
 
     - name: Verify Windows SDK
       run: |
@@ -158,9 +158,9 @@ jobs:
       uses: seanmiddleditch/gha-setup-ninja@master
 
     - name: Setup Windows App SDK
-      uses: microsoft/setup-windows-appsdk@main
-      with:
-        version: '1.4'
+      run: |
+        Write-Host "Installing Windows App SDK via Chocolatey..." -ForegroundColor Green
+        choco install microsoft-windowsappsdk --version=1.4.231008000 --yes --no-progress --force
 
     - name: Verify Windows SDK
       run: |
@@ -278,71 +278,12 @@ jobs:
           Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)"
         }
 
-  create-installer:
-    name: Create Universal Windows Installer
-    runs-on: windows-latest
-    needs: [build-manager, build-agents]
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 25
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-
-    - name: Extract artifacts
-      run: |
-        Write-Host "Extracting all artifacts..." -ForegroundColor Cyan
-        mkdir installer/bin
-
-        # Extract Universal Manager
-        if (Test-Path "artifacts/MacTypeManager-Universal") {
-          Get-ChildItem -Path "artifacts/MacTypeManager-Universal" -Filter "*.zip" | ForEach-Object {
-            Expand-Archive -Path $_.FullName -DestinationPath "installer/bin" -Force
-          }
-        }
-
-        # Extract agent builds
-        Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip" | ForEach-Object {
-          $platform = $_.Name -replace "MacType-(.+)-Release\.zip", '$1'
-          Expand-Archive -Path $_.FullName -DestinationPath "installer/bin/$platform" -Force
-        }
-
-    - name: Cache NSIS
-      uses: actions/cache@v4
-      with:
-        path: C:\Program Files (x86)\NSIS
-        key: nsis-${{ runner.os }}
-
-    - name: Setup NSIS
-      if: steps.cache-nsis.outputs.cache-hit != 'true'
-      run: choco install nsis -y --no-progress
-
-    - name: Build Universal Windows installer
-      run: |
-        if (Test-Path "installer/mactype-universal.iss") {
-          Write-Host "Building Universal Windows installer..." -ForegroundColor Cyan
-          Write-Host "Contents of installer/bin:" -ForegroundColor Yellow
-          Get-ChildItem -Path installer/bin -Recurse | Select-Object FullName
-
-          & "C:\Program Files (x86)\NSIS\makensis.exe" installer\mactype-universal.iss
-        }
-
-    - name: Upload Universal Windows installer
-      uses: actions/upload-artifact@v4
-      with:
-        name: MacType-Universal-Installer
-        path: installer/Output/*.exe
-        retention-days: 30
+  # Installer creation removed - not implemented yet
 
   create-universal-release:
     name: Create Universal Release
     runs-on: windows-latest
-    needs: [build-manager, build-agents, create-installer]
+    needs: [build-manager, build-agents]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
 
@@ -369,10 +310,7 @@ jobs:
           Expand-Archive -Path $_.FullName -DestinationPath "release-files/Agents/$platform"
         }
 
-        # Copy installer
-        if (Test-Path "artifacts/MacType-Universal-Installer") {
-          Copy-Item "artifacts/MacType-Universal-Installer/*.exe" "release-files/"
-        }
+        # Installer not implemented yet
 
     - name: Create Universal release archives
       run: |
@@ -422,3 +360,4 @@ jobs:
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         generate_release_notes: true
+        # Note: Installer will be added later when implemented
