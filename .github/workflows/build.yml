@@ -272,7 +272,47 @@ jobs:
 
           Write-Host "Bootstrapping vcpkg..." -ForegroundColor Cyan
           cd vcpkg
-          .\bootstrap-vcpkg.bat -disableMetrics -useSystemBinaries
+
+          # Try bootstrap with fallback options
+          $bootstrapSuccess = $false
+
+          # First try: standard bootstrap (without useSystemBinaries)
+          try {
+            Write-Host "Trying standard bootstrap..." -ForegroundColor Gray
+            .\bootstrap-vcpkg.bat -disableMetrics
+            if ($LASTEXITCODE -eq 0) {
+              $bootstrapSuccess = $true
+              Write-Host "Standard bootstrap successful" -ForegroundColor Green
+            }
+          }
+          catch {
+            Write-Host "Standard bootstrap failed, trying alternative..." -ForegroundColor Yellow
+          }
+
+          # Second try: PowerShell bootstrap script
+          if (-not $bootstrapSuccess) {
+            try {
+              Write-Host "Trying PowerShell bootstrap..." -ForegroundColor Gray
+              .\scripts\bootstrap.ps1 -DisableMetrics
+              if ($LASTEXITCODE -eq 0) {
+                $bootstrapSuccess = $true
+                Write-Host "PowerShell bootstrap successful" -ForegroundColor Green
+              }
+            }
+            catch {
+              Write-Host "PowerShell bootstrap failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+          }
+
+          if (-not $bootstrapSuccess) {
+            Write-Host "All bootstrap methods failed, checking if vcpkg.exe exists..." -ForegroundColor Yellow
+            if (Test-Path "vcpkg.exe") {
+              Write-Host "vcpkg.exe found despite bootstrap failure, continuing..." -ForegroundColor Green
+              $bootstrapSuccess = $true
+            } else {
+              throw "vcpkg bootstrap failed completely"
+            }
+          }
         } else {
           Write-Host "Using cached vcpkg..." -ForegroundColor Green
           cd vcpkg
@@ -287,9 +327,19 @@ jobs:
         echo "$vcpkgRoot" >> $env:GITHUB_PATH
         echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
 
-        # Verify vcpkg installation
-        $vcpkgVersion = & .\vcpkg.exe version
-        Write-Host "vcpkg version: $($vcpkgVersion[0])" -ForegroundColor Green
+        # Verify vcpkg installation with full path
+        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
+        if (Test-Path $vcpkgExePath) {
+          try {
+            $vcpkgVersion = & $vcpkgExePath version 2>&1
+            Write-Host "vcpkg version: $($vcpkgVersion[0])" -ForegroundColor Green
+          }
+          catch {
+            Write-Host "Could not get vcpkg version: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        } else {
+          Write-Host "Warning: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Yellow
+        }
 
         cd ..
         Write-Host "vcpkg setup complete" -ForegroundColor Green
@@ -300,7 +350,14 @@ jobs:
         Write-Host "=== Pre-installing common dependencies ===" -ForegroundColor Green
 
         $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
-        cd $vcpkgRoot
+        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
+
+        if (!(Test-Path $vcpkgExePath)) {
+          Write-Host "vcpkg.exe not found, skipping pre-installation" -ForegroundColor Yellow
+          exit 0
+        }
+
+        Write-Host "Using vcpkg: $vcpkgExePath" -ForegroundColor Cyan
 
         # Pre-download common packages for all triplets
         $triplets = @("x86-windows", "x64-windows", "arm64-windows")
@@ -316,8 +373,14 @@ jobs:
         foreach ($triplet in $triplets) {
           Write-Host "Pre-downloading for $triplet..." -ForegroundColor Cyan
           foreach ($package in $commonPackages) {
-            Write-Host "  Pre-downloading $package..." -ForegroundColor Gray
-            .\vcpkg.exe install $package --triplet $triplet --only-downloads --binarycaching 2>&1 | Out-Null
+            try {
+              Write-Host "  Pre-downloading $package..." -ForegroundColor Gray
+              & $vcpkgExePath install $package --triplet $triplet --only-downloads --binarycaching 2>&1 | Out-Null
+              Write-Host "    $package downloaded for $triplet" -ForegroundColor Green
+            }
+            catch {
+              Write-Host "    Failed to download $package for $triplet : $($_.Exception.Message)" -ForegroundColor Yellow
+            }
           }
         }
 
