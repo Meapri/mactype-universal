@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64, ARM64]  # x86 필수 - x86 OS에서는 x86 mt64agnt가 반드시 필요
+        platform: [x86, x64, ARM64]  # 미래 지향적 전략: ARM64 네이티브 지원 우선
         configuration: [Release]
         include:
           # ARM64 빌드에서는 mt64agnt 제외 (x64 mt64agnt로 커버)
@@ -220,8 +220,15 @@ jobs:
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
-        # ARM64에서는 mt64agnt 빌드 제외 (x64 mt64agnt로 ARM64 + x64 + x86 프로세스 모두 처리)
-        $buildAgentFlag = if ("${{ matrix.platform }}" -eq "ARM64") { "OFF" } else { "ON" }
+        # ARM64에서 mt64agnt 빌드 추가: ARM64 네이티브 앱 생태계 성장 고려
+        # x86에서 mt64agnt 빌드 제외: x64 mt64agnt로 32비트 프로세스 처리 가능
+        # mt64agnt 빌드 전략: 단계적 미래 전환
+        $buildAgentFlag = switch ("${{ matrix.platform }}") {
+            "x86" { "ON" }   # x86: 유지 (32비트 OS에서 x64 mt64agnt 실행 불가)
+            "x64" { "ON" }   # x64: 유지 (범용 mt64agnt)
+            "ARM64" { "ON" } # ARM64: 추가 (네이티브 앱 생태계 성장 대응)
+            default { "ON" }
+        }
         cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=$buildAgentFlag
 
     - name: Build with CMake
