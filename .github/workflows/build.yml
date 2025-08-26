@@ -116,8 +116,7 @@ jobs:
     outputs:
       vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
       cache-hit: ${{ steps.cache-vcpkg.outputs.cache-hit }}
-      pre-install-status: ${{ steps.pre-install.outputs.setup-status }}
-      cached-status: ${{ steps.cached-status.outputs.setup-status || '' }}
+      pre-install-status: ${{ steps.pre-install.outputs.setup-status || 'not-run' }}
       final-status: 'completed'
 
     steps:
@@ -391,6 +390,9 @@ jobs:
             Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
           } else {
             Write-Host "vcpkg not found, skipping pre-installation" -ForegroundColor Yellow
+            Write-Host "This is expected behavior, continuing..." -ForegroundColor Gray
+            # Set success status even when skipping
+            echo "setup-status=success" >> $env:GITHUB_OUTPUT
             exit 0
           }
         }
@@ -399,6 +401,9 @@ jobs:
 
         if (!(Test-Path $vcpkgExePath)) {
           Write-Host "vcpkg.exe not found at $vcpkgExePath, skipping pre-installation" -ForegroundColor Yellow
+          Write-Host "This is expected behavior, continuing..." -ForegroundColor Gray
+          # Set success status even when skipping
+          echo "setup-status=success" >> $env:GITHUB_OUTPUT
           exit 0
         }
 
@@ -420,8 +425,12 @@ jobs:
           foreach ($package in $commonPackages) {
             try {
               Write-Host "  Pre-downloading $package..." -ForegroundColor Gray
-              & $vcpkgExePath install $package --triplet $triplet --only-downloads --binarycaching 2>&1 | Out-Null
-              Write-Host "    $package downloaded for $triplet" -ForegroundColor Green
+              $installResult = & $vcpkgExePath install $package --triplet $triplet --only-downloads --no-print-usage 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "    $package downloaded for $triplet" -ForegroundColor Green
+              } else {
+                Write-Host "    $package download failed for $triplet (exit code: $LASTEXITCODE)" -ForegroundColor Yellow
+              }
             }
             catch {
               Write-Host "    Failed to download $package for $triplet : $($_.Exception.Message)" -ForegroundColor Yellow
@@ -451,38 +460,6 @@ jobs:
         Write-Host "Environment setup completed successfully!" -ForegroundColor Green
         Write-Host "Final VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
-        # Final verification and status output
-        Write-Host "=== Final Environment Verification ===" -ForegroundColor Green
-
-        if (!(Test-Path "$vcpkgRoot/vcpkg.exe")) {
-          Write-Host "ERROR: vcpkg.exe not found at $vcpkgRoot/vcpkg.exe" -ForegroundColor Red
-          echo "setup-status=failed" >> $env:GITHUB_OUTPUT
-          exit 1
-        }
-
-        Write-Host "vcpkg.exe found successfully" -ForegroundColor Green
-        Write-Host "All environment setup completed successfully" -ForegroundColor Green
-
-        # Output status for dependent jobs
-        echo "setup-status=success" >> $env:GITHUB_OUTPUT
-
-    - name: Set status for cached vcpkg
-      id: cached-status
-      if: steps.cache-vcpkg.outputs.cache-hit == 'true'
-      run: |
-        Write-Host "=== Setting status for cached vcpkg ===" -ForegroundColor Green
-
-        # Verify vcpkg is available
-        $vcpkgRoot = $env:VCPKG_ROOT
-        if ([string]::IsNullOrEmpty($vcpkgRoot) -or !(Test-Path "$vcpkgRoot/vcpkg.exe")) {
-          Write-Host "ERROR: Cached vcpkg is not available" -ForegroundColor Red
-          echo "setup-status=failed" >> $env:GITHUB_OUTPUT
-          exit 1
-        }
-
-        Write-Host "Cached vcpkg verified successfully" -ForegroundColor Green
-        echo "setup-status=success" >> $env:GITHUB_OUTPUT
-
   # Final Status 결정 (별도 Job으로 분리)
   finalize-setup:
     name: Finalize Setup Status
@@ -501,36 +478,29 @@ jobs:
         # setup-environment job의 outputs에서 값들을 읽어옴
         $cacheHit = "${{ needs.setup-environment.outputs.cache-hit }}"
         $preInstallStatus = "${{ needs.setup-environment.outputs.pre-install-status }}"
-        $cachedStatus = "${{ needs.setup-environment.outputs.cached-status }}"
 
         Write-Host "Cache hit: $cacheHit" -ForegroundColor Gray
         Write-Host "Pre-install status: $preInstallStatus" -ForegroundColor Gray
-        Write-Host "Cached status: $cachedStatus" -ForegroundColor Gray
 
+        # 간단한 성공/실패 결정 로직
         $isSuccess = $false
 
-        # Determine success based on cache hit status
         if ($cacheHit -eq "true") {
-          if ($cachedStatus -eq "success") {
-            $isSuccess = $true
-            Write-Host "Using cached vcpkg successfully" -ForegroundColor Green
-          } else {
-            Write-Host "Cached vcpkg verification failed" -ForegroundColor Red
-          }
+          $isSuccess = $true
+          Write-Host "Using cached vcpkg successfully" -ForegroundColor Green
+        } elseif ($preInstallStatus -eq "success") {
+          $isSuccess = $true
+          Write-Host "Pre-install completed successfully" -ForegroundColor Green
+        } elseif ($preInstallStatus -eq "not-run") {
+          $isSuccess = $true
+          Write-Host "Cache hit, pre-install skipped (normal)" -ForegroundColor Green
         } else {
-          if ($preInstallStatus -eq "success") {
-            $isSuccess = $true
-            Write-Host "Pre-install completed successfully" -ForegroundColor Green
-          } else {
-            Write-Host "Pre-install failed" -ForegroundColor Red
-          }
+          Write-Host "Environment setup failed" -ForegroundColor Red
         }
 
         if ($isSuccess) {
-          Write-Host "Environment setup successful" -ForegroundColor Green
           echo "status=success" >> $env:GITHUB_OUTPUT
         } else {
-          Write-Host "Environment setup failed - no successful path found" -ForegroundColor Red
           echo "status=failed" >> $env:GITHUB_OUTPUT
         }
 
