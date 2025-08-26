@@ -349,8 +349,8 @@ endif()
 
 # Create executable targets
 if(WIN32)
-    # Main DLL
-    add_executable(MacType.Core WIN32 src/platform/dll.cpp src/platform/resource)
+    # Main DLL - MacType.Core as DLL (traditional architecture)
+    add_library(MacType.Core SHARED src/platform/dll.cpp src/platform/resource)
     target_link_libraries(MacType.Core PRIVATE mactype)
 
     # GUI applications
@@ -359,6 +359,10 @@ if(WIN32)
 
     add_executable(MacTray WIN32 src/platform/macloader.rc)
     target_link_libraries(MacTray PRIVATE mactype)
+
+    # Loader executable for MacType.Core.dll
+    add_executable(MacType.Loader WIN32 src/platform/run.cpp)
+    target_link_libraries(MacType.Loader PRIVATE mactype)
 endif()
 
 # Install targets - only export mactype, not detours
