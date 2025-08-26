@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64, ARM64]
+        platform: [x86, x64, ARM64]  # x86 필수 - x86 OS에서는 x86 mt64agnt가 반드시 필요
         configuration: [Release]
         include:
           # ARM64 빌드에서는 mt64agnt 제외 (x64 mt64agnt로 커버)
@@ -220,7 +220,7 @@ jobs:
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
-        # ARM64에서는 mt64agnt 빌드 제외
+        # ARM64에서는 mt64agnt 빌드 제외 (x64 mt64agnt로 커버)
         $buildAgentFlag = if ("${{ matrix.platform }}" -eq "ARM64") { "OFF" } else { "ON" }
         cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=$buildAgentFlag
 
