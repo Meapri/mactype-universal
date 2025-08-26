@@ -52,11 +52,7 @@ jobs:
       fail-fast: false
       matrix:
         platform: [x86, x64, ARM64]
-        configuration: [Release, Debug]
-        exclude:
-          # ARM64는 Release만 빌드 (Debug는 너무 느림)
-          - platform: ARM64
-            configuration: Debug
+        configuration: [Release]
 
     steps:
     - name: Checkout code
@@ -236,7 +232,7 @@ jobs:
 
     - name: List build artifacts
       run: |
-        Write-Host "Build artifacts:" -ForegroundColor Green
+        Write-Host "Release build artifacts:" -ForegroundColor Green
         Get-ChildItem -Path build -Recurse -Include *.exe, *.dll | ForEach-Object {
           Write-Host "  $($_.FullName) ($($_.Length) bytes)"
         }
