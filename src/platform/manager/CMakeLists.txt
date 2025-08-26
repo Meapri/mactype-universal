@@ -77,12 +77,32 @@ target_compile_options(MacTypeManager PRIVATE
     /permissive-
 )
 
-# Set Windows App SDK properties
+# Set Windows App SDK properties for Universal App
 set_target_properties(MacTypeManager PROPERTIES
-    VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Platform x64
+    VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Platform "x64;ARM64"
     VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Version 1.4
     VS_PACKAGE_REFERENCES "Microsoft.WindowsAppSDK_1.4"
+    VS_GLOBAL_AppxPackageSigningEnabled "false"  # Disable for development
 )
+
+# Enable MSIX packaging for Universal Windows Platform
+if(WIN32)
+    set_property(TARGET MacTypeManager PROPERTY
+        VS_GLOBAL_WindowsTargetPlatformVersion "10.0.19041.0"
+    )
+    set_property(TARGET MacTypeManager PROPERTY
+        VS_GLOBAL_WindowsTargetPlatformMinVersion "10.0.17763.0"
+    )
+    set_property(TARGET MacTypeManager PROPERTY
+        VS_GLOBAL_AppxPackage "true"
+    )
+    set_property(TARGET MacTypeManager PROPERTY
+        VS_GLOBAL_AppxBundle "Always"
+    )
+    set_property(TARGET MacTypeManager PROPERTY
+        VS_GLOBAL_UapAppxPackageBuildMode "SideloadOnly"
+    )
+endif()
 
 # Add integration test executable
 add_executable(MacTypeManagerTest

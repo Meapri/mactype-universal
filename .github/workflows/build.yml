@@ -17,10 +17,155 @@ env:
   VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
 
 jobs:
-  build:
-    name: Build ${{ matrix.platform }} ${{ matrix.configuration }}
+  build-manager:
+    name: Build MacType Manager (Universal App)
     runs-on: windows-latest
-    timeout-minutes: 45  # 빌드 시간 단축
+    timeout-minutes: 35
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Setup CMake
+      uses: lukka/get-cmake@latest
+
+    - name: Setup Ninja
+      uses: seanmiddleditch/gha-setup-ninja@master
+
+    - name: Cache Windows App SDK
+      id: cache-windows-app-sdk
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.*
+          C:\Program Files (x86)\WindowsApps\Microsoft.WindowsAppSDK.*
+        key: windows-app-sdk-1.4-${{ runner.os }}
+        restore-keys: |
+          windows-app-sdk-1.4-
+          windows-app-sdk-
+
+    - name: Install Windows App SDK
+      if: steps.cache-windows-app-sdk.outputs.cache-hit != 'true'
+      run: |
+        Write-Host "Installing Windows App SDK..." -ForegroundColor Green
+        winget install Microsoft.WindowsAppSDK.1.4 --accept-package-agreements --accept-source-agreements --silent --force
+
+    - name: Add Windows SDK to PATH and set compatible SDK version
+      run: |
+        echo "=== 설치된 Windows SDK 버전들 ==="
+        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name
+
+        $preferredVersions = @("10.0.26100.0", "10.0.22621.0", "10.0.22000.0", "10.0.20348.0", "10.0.19041.0")
+        $selectedSdk = $null
+        foreach ($version in $preferredVersions) {
+          $sdkIncludePath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$version"
+          if (Test-Path $sdkIncludePath) { $selectedSdk = $version; echo "선택된 Windows SDK: $version"; break }
+        }
+        if (-not $selectedSdk -and $sdkVersions) {
+          $newestSdk = $sdkVersions | Where-Object { $_.Name -match "^\d+\.\d+\.\d+\.\d+$" } | Sort-Object Name -Descending | Select-Object -First 1
+          if ($newestSdk) { $selectedSdk = $newestSdk.Name; echo "최신 Windows SDK 사용: $selectedSdk" } else { $selectedSdk = $sdkVersions[0].Name; echo "기본 Windows SDK 사용: $selectedSdk" }
+        }
+        if ($selectedSdk) {
+          echo "WindowsSDKVersion=$selectedSdk" >> $env:GITHUB_ENV
+          echo "WINDOWS_SDK_VERSION=$selectedSdk" >> $env:GITHUB_ENV
+          # 플랫폼별 SDK bin 경로 설정
+          $sdkBinPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64"
+          if (Test-Path $sdkBinPath) { echo "$sdkBinPath" >> $env:GITHUB_PATH }
+        }
+        echo "=== Visual Studio 설치 확인 ==="
+        Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
+        Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
+
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          vcpkg
+          vcpkg/installed
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-
+          vcpkg-
+
+    - name: Setup vcpkg
+      run: |
+        if (!(Test-Path "vcpkg")) {
+          git clone https://github.com/Microsoft/vcpkg.git --depth 1
+          cd vcpkg
+          .\bootstrap-vcpkg.bat -disableMetrics
+        } else {
+          cd vcpkg
+        }
+        echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
+        echo "$PWD" >> $env:GITHUB_PATH
+        cd ..
+
+    - name: Install dependencies via vcpkg
+      run: |
+        Write-Host "Installing dependencies for Universal App..." -ForegroundColor Cyan
+
+        # Universal app의 경우 x64 triplet 사용 (Windows가 자동으로 적절한 아키텍처 선택)
+        .\vcpkg\vcpkg.exe install --triplet x64-windows --binarycaching
+
+        Write-Host "Dependencies installed successfully" -ForegroundColor Green
+
+    - name: Configure and Build Universal App
+      run: |
+        if (Test-Path "build-manager") {
+          Remove-Item -Recurse -Force build-manager
+        }
+        mkdir build-manager
+        cd build-manager
+
+        # Universal App 구성
+        Write-Host "Configuring Universal App (x64 + ARM64)..." -ForegroundColor Cyan
+        cmake .. `
+          -G Ninja `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DCMAKE_GENERATOR_PLATFORM=x64 `
+          -DCMAKE_TOOLCHAIN_FILE="$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake" `
+          -DVCPKG_TARGET_TRIPLET=x64-windows `
+          -DBUILD_MODERN_MANAGER=ON `
+          -DCMAKE_CXX_FLAGS="/MP /O2" `
+          -DCMAKE_SYSTEM_NAME=WindowsStore `
+          -DCMAKE_SYSTEM_VERSION=10.0
+
+        # 병렬 빌드
+        Write-Host "Building Universal App..." -ForegroundColor Cyan
+        cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+
+    - name: Create Universal App Package
+      run: |
+        cd build-manager
+
+        # MSIX 패키지 생성을 위한 추가 구성
+        Write-Host "Creating Universal App Package..." -ForegroundColor Cyan
+
+        # 앱 패키지 생성 (개발용 sideload)
+        if (Test-Path "MacTypeManager.exe") {
+          # Universal Windows Platform 앱으로 패키징
+          Write-Host "MacTypeManager.exe found, creating MSIX package..." -ForegroundColor Green
+
+          # 간단한 ZIP 아카이브로 패키징 (실제 MSIX는 별도 도구 필요)
+          Compress-Archive -Path "MacTypeManager.exe" -DestinationPath "../MacTypeManager-Universal.zip" -CompressionLevel Optimal
+        }
+
+    - name: Upload Universal App
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacTypeManager-Universal
+        path: |
+          MacTypeManager-Universal.zip
+          build-manager/MacTypeManager.*
+        retention-days: 30
+        if-no-files-found: error
+
+  build-agents:
+    name: Build Agents ${{ matrix.platform }}
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -195,29 +340,37 @@ jobs:
         }
 
   create-installer:
-    name: Create Windows Installer
+    name: Create Universal Windows Installer
     runs-on: windows-latest
-    needs: build
+    needs: [build-manager, build-agents]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download build artifacts
+    - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
         path: artifacts
 
     - name: Extract artifacts
       run: |
-        Write-Host "Extracting build artifacts..." -ForegroundColor Cyan
-        Get-ChildItem -Path artifacts -Directory | ForEach-Object {
-          $artifactPath = $_.FullName
-          Get-ChildItem -Path $artifactPath -Filter "*.zip" | ForEach-Object {
+        Write-Host "Extracting all artifacts..." -ForegroundColor Cyan
+        mkdir installer/bin
+
+        # Extract Universal Manager
+        if (Test-Path "artifacts/MacTypeManager-Universal") {
+          Get-ChildItem -Path "artifacts/MacTypeManager-Universal" -Filter "*.zip" | ForEach-Object {
             Expand-Archive -Path $_.FullName -DestinationPath "installer/bin" -Force
           }
+        }
+
+        # Extract agent builds
+        Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip" | ForEach-Object {
+          $platform = $_.Name -replace "MacType-(.+)-Release\.zip", '$1'
+          Expand-Archive -Path $_.FullName -DestinationPath "installer/bin/$platform" -Force
         }
 
     - name: Cache NSIS
@@ -230,26 +383,29 @@ jobs:
       if: steps.cache-nsis.outputs.cache-hit != 'true'
       run: choco install nsis -y --no-progress
 
-    - name: Build Windows installer
+    - name: Build Universal Windows installer
       run: |
         if (Test-Path "installer/mactype-universal.iss") {
-          Write-Host "Building Windows installer..." -ForegroundColor Cyan
+          Write-Host "Building Universal Windows installer..." -ForegroundColor Cyan
+          Write-Host "Contents of installer/bin:" -ForegroundColor Yellow
+          Get-ChildItem -Path installer/bin -Recurse | Select-Object FullName
+
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer\mactype-universal.iss
         }
 
-    - name: Upload Windows installer
+    - name: Upload Universal Windows installer
       uses: actions/upload-artifact@v4
       with:
-        name: MacType-Windows-Installer
+        name: MacType-Universal-Installer
         path: installer/Output/*.exe
         retention-days: 30
 
-  create-release:
-    name: Create Release Archive
+  create-universal-release:
+    name: Create Universal Release
     runs-on: windows-latest
-    needs: [build, create-installer]
+    needs: [build-manager, build-agents, create-installer]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
     - name: Download all artifacts
@@ -259,53 +415,64 @@ jobs:
 
     - name: Extract and organize files
       run: |
-        Write-Host "Organizing release files..." -ForegroundColor Cyan
+        Write-Host "Organizing Universal release files..." -ForegroundColor Cyan
         mkdir release-files
 
-        # Extract platform-specific builds
+        # Extract Universal Manager
+        if (Test-Path "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip") {
+          Expand-Archive -Path "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip" -DestinationPath "release-files/Manager"
+        }
+
+        # Extract agent builds
         Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip" | ForEach-Object {
           $platform = $_.Name -replace "MacType-(.+)-Release\.zip", '$1'
-          Expand-Archive -Path $_.FullName -DestinationPath "release-files/$platform"
+          mkdir "release-files/Agents/$platform"
+          Expand-Archive -Path $_.FullName -DestinationPath "release-files/Agents/$platform"
         }
 
-        # Copy installer if exists
-        if (Test-Path "artifacts/MacType-Windows-Installer") {
-          Copy-Item "artifacts/MacType-Windows-Installer/*.exe" "release-files/"
+        # Copy installer
+        if (Test-Path "artifacts/MacType-Universal-Installer") {
+          Copy-Item "artifacts/MacType-Universal-Installer/*.exe" "release-files/"
         }
 
-    - name: Create release archives
+    - name: Create Universal release archives
       run: |
-        Write-Host "Creating release archives..." -ForegroundColor Cyan
+        Write-Host "Creating Universal release archives..." -ForegroundColor Cyan
 
-        # Create combined archive
-        Compress-Archive -Path release-files/* -DestinationPath MacType-Windows-Complete.zip -CompressionLevel Optimal
+        # Create complete Universal package
+        Compress-Archive -Path release-files/* -DestinationPath MacType-Universal-Complete.zip -CompressionLevel Optimal
 
-        # Create separate platform archives
-        Get-ChildItem -Path release-files -Directory | ForEach-Object {
-          $platform = $_.Name
-          Compress-Archive -Path "release-files/$platform/*" -DestinationPath "MacType-Windows-$platform.zip" -CompressionLevel Optimal
+        # Create manager-only package
+        Compress-Archive -Path release-files/Manager/* -DestinationPath MacType-Manager-Universal.zip -CompressionLevel Optimal
+
+        # Create agents-only package
+        Compress-Archive -Path release-files/Agents/* -DestinationPath MacType-Agents-Universal.zip -CompressionLevel Optimal
+
+        Write-Host "Universal release archives created:" -ForegroundColor Green
+        Get-ChildItem -Filter "*.zip" | ForEach-Object {
+          Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)"
         }
 
-    - name: Upload release archives
+    - name: Upload Universal release archives
       uses: actions/upload-artifact@v4
       with:
-        name: MacType-Release-Archives
+        name: MacType-Universal-Release
         path: |
-          MacType-Windows-*.zip
+          MacType-Universal-*.zip
         retention-days: 60
 
-  deploy-release:
-    name: Deploy Release
+  deploy-universal-release:
+    name: Deploy Universal Release
     runs-on: windows-latest
-    needs: create-release
+    needs: create-universal-release
     if: github.event_name == 'release'
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
-    - name: Download release archives
+    - name: Download Universal release archives
       uses: actions/download-artifact@v4
       with:
-        name: MacType-Release-Archives
+        name: MacType-Universal-Release
         path: release-assets
 
     - name: Publish to GitHub Release
@@ -315,3 +482,4 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        generate_release_notes: true

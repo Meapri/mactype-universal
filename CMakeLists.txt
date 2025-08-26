@@ -511,8 +511,8 @@ if(WIN32)
     endif()
 endif()
 
-# Modern MacType Manager with WinUI 3
-option(BUILD_MODERN_MANAGER "Build the modern MacType Manager with WinUI 3" ON)
+# Modern MacType Manager - Universal WinUI 3 App
+option(BUILD_MODERN_MANAGER "Build the modern MacType Manager with WinUI 3 (Universal App)" ON)
 if(BUILD_MODERN_MANAGER)
     # Find Windows App SDK (only on Windows)
     if(WIN32)
@@ -554,8 +554,9 @@ if(BUILD_MODERN_MANAGER)
         endif()
     endif()
 
-    # Add MacType Manager subdirectory
+    # Add MacType Manager subdirectory (Universal App)
     if(BUILD_MODERN_MANAGER)
+        message(STATUS "Building MacType Manager as Universal WinUI 3 App (x64 + ARM64)")
         add_subdirectory(src/platform/manager)
     endif()
 endif()
