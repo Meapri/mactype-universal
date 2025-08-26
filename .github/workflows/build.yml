@@ -176,9 +176,9 @@ jobs:
         echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
         Write-Host "Environment setup completed at $setupTime" -ForegroundColor Green
 
-  # Universal Manager 빌드 (x64 + ARM64)
+  # Universal Manager 빌드 (x64 전용)
   build-manager:
-    name: Build MacType Manager (Universal)
+    name: Build MacType Manager (x64)
     runs-on: windows-latest
     needs: setup-environment
     timeout-minutes: 30
@@ -254,13 +254,14 @@ jobs:
         retention-days: 30
         if-no-files-found: error
 
-  # 플랫폼별 빌드 (x86 코어 DLL + x64/ARM64 Agents)
+  # 플랫폼별 빌드 (x86 코어 + x64/ARM64 Agents)
   build-platforms:
     name: Build ${{ matrix.platform }} (${{ matrix.type }})
     runs-on: windows-latest
     needs: setup-environment
     timeout-minutes: 25
 
+    # 플랫폼별 빌드 매트릭스 명시적 설정
     strategy:
       fail-fast: false
       matrix:
@@ -268,12 +269,15 @@ jobs:
           - platform: x86
             type: "Core DLL only"
             build_agent: "OFF"
+            description: "32-bit core DLL for 32-bit app support"
           - platform: x64
             type: "Agent + Core"
             build_agent: "ON"
+            description: "64-bit agent with full functionality"
           - platform: ARM64
             type: "Agent + Core"
             build_agent: "ON"
+            description: "ARM64 agent with full functionality"
         configuration: [Release]
 
     steps:
@@ -322,6 +326,8 @@ jobs:
     - name: Configure and Build Platform
       run: |
         Write-Host "=== Building MacType ${{ matrix.type }} for ${{ matrix.platform }} ===" -ForegroundColor Green
+        Write-Host "Description: ${{ matrix.description }}" -ForegroundColor Cyan
+        Write-Host "Build Agent: ${{ matrix.build_agent }}" -ForegroundColor Gray
 
         if (Test-Path "build") {
           Remove-Item -Recurse -Force build
@@ -462,21 +468,43 @@ jobs:
         Write-Host "=== Creating Release Packages ===" -ForegroundColor Green
         mkdir release-files
 
+        # 사용 가능한 아티팩트 목록 표시
+        Write-Host "Available artifacts:" -ForegroundColor Cyan
+        Get-ChildItem -Path artifacts -Recurse -File | ForEach-Object {
+          Write-Host "  $($_.FullName)" -ForegroundColor Gray
+        }
+
         # Universal Manager 추출
         Write-Host "Extracting Universal Manager..." -ForegroundColor Cyan
-        if (Test-Path "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip") {
-          Expand-Archive -Path "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip" -DestinationPath "release-files/Manager"
-          Write-Host "Manager extracted" -ForegroundColor Green
+        $managerPath = "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip"
+        if (Test-Path $managerPath) {
+          mkdir "release-files/Manager"
+          Expand-Archive -Path $managerPath -DestinationPath "release-files/Manager"
+          Write-Host "Manager extracted successfully" -ForegroundColor Green
+          Get-ChildItem -Path "release-files/Manager" -File | ForEach-Object {
+            Write-Host "  📦 Manager: $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor Gray
+          }
+        } else {
+          Write-Host "Warning: Manager artifact not found at $managerPath" -ForegroundColor Yellow
         }
 
         # 플랫폼별 Agent 추출
         Write-Host "Extracting platform agents..." -ForegroundColor Cyan
         $agentArchives = Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip"
+        Write-Host "Found $($agentArchives.Count) platform archives:" -ForegroundColor Cyan
+
         foreach ($archive in $agentArchives) {
           $platform = $archive.Name -replace "MacType-(.+)-Release\.zip", '$1'
+          Write-Host "  📦 Extracting $platform..." -ForegroundColor Gray
+
           mkdir "release-files/Agents/$platform"
           Expand-Archive -Path $archive.FullName -DestinationPath "release-files/Agents/$platform"
-          Write-Host "Agent $platform extracted" -ForegroundColor Green
+          Write-Host "    $platform extracted successfully" -ForegroundColor Green
+
+          # 추출된 파일 목록
+          Get-ChildItem -Path "release-files/Agents/$platform" -File | ForEach-Object {
+            Write-Host "      $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor DarkGray
+          }
         }
 
     - name: Create release packages
