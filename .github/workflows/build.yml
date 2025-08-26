@@ -34,9 +34,9 @@ jobs:
 
     - name: Setup vcpkg
       run: |
-        # vcpkg 설치
+        # vcpkg 설치 (full clone으로 변경)
         if (!(Test-Path "vcpkg")) {
-          git clone https://github.com/Microsoft/vcpkg.git --depth 1
+          git clone https://github.com/Microsoft/vcpkg.git
         }
         cd vcpkg
         if (!(Test-Path "vcpkg.exe")) {
