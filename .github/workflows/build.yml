@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 25
     outputs:
       vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
-      setup-status: ${{ steps.final-status.outputs.status }}
+      setup-status: ${{ env.SETUP_STATUS || 'success' }}
       env-status: 'completed'
 
     steps:
@@ -483,6 +483,7 @@ jobs:
 
     - name: Final Status Determination
       id: final-status
+      if: always()
       run: |
         Write-Host "=== Determining Final Setup Status ===" -ForegroundColor Green
 
@@ -496,20 +497,36 @@ jobs:
         Write-Host "Cached status: $cachedStatus" -ForegroundColor Gray
 
         $isSuccess = $false
-        if ($cacheHit -eq "true" -and $cachedStatus -eq "success") {
-          $isSuccess = $true
-          Write-Host "Using cached vcpkg successfully" -ForegroundColor Green
-        } elseif ($cacheHit -ne "true" -and $preInstallStatus -eq "success") {
-          $isSuccess = $true
-          Write-Host "Pre-install completed successfully" -ForegroundColor Green
+
+        # Determine success based on cache hit status
+        if ($cacheHit -eq "true") {
+          # Cache hit scenario
+          if ($cachedStatus -eq "success") {
+            $isSuccess = $true
+            Write-Host "Using cached vcpkg successfully" -ForegroundColor Green
+          } else {
+            Write-Host "Cached vcpkg verification failed" -ForegroundColor Red
+          }
+        } else {
+          # Cache miss scenario
+          if ($preInstallStatus -eq "success") {
+            $isSuccess = $true
+            Write-Host "Pre-install completed successfully" -ForegroundColor Green
+          } else {
+            Write-Host "Pre-install failed" -ForegroundColor Red
+          }
         }
 
         if ($isSuccess) {
           Write-Host "Environment setup successful" -ForegroundColor Green
           echo "status=success" >> $env:GITHUB_OUTPUT
+          echo "SETUP_STATUS=success" >> $env:GITHUB_ENV
+          Write-Host "=== Setup Environment Job Completed Successfully ===" -ForegroundColor Green
         } else {
-          Write-Host "Environment setup failed" -ForegroundColor Red
+          Write-Host "Environment setup failed - no successful path found" -ForegroundColor Red
           echo "status=failed" >> $env:GITHUB_OUTPUT
+          echo "SETUP_STATUS=failed" >> $env:GITHUB_ENV
+          Write-Host "=== Setup Environment Job Failed ===" -ForegroundColor Red
           exit 1
         }
 
