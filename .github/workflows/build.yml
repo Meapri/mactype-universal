@@ -209,6 +209,23 @@ jobs:
         cd ..
         Write-Host "Current directory for vcpkg install: $(Get-Location)" -ForegroundColor Cyan
 
+        # Verify vcpkg.json exists in project root for manifest mode
+        Write-Host "Verifying vcpkg.json for manifest mode..." -ForegroundColor Cyan
+        $vcpkgJsonPath = ".\vcpkg.json"
+        if (!(Test-Path $vcpkgJsonPath)) {
+          Write-Host "ERROR: vcpkg.json not found at $vcpkgJsonPath" -ForegroundColor Red
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
+          exit 1
+        }
+
+        Write-Host "Found vcpkg.json at: $vcpkgJsonPath" -ForegroundColor Green
+
+        # Verify vcpkg.json content
+        $vcpkgJsonContent = Get-Content $vcpkgJsonPath -Raw
+        Write-Host "vcpkg.json content preview:" -ForegroundColor Gray
+        Write-Host $vcpkgJsonContent.Substring(0, [Math]::Min(200, $vcpkgJsonContent.Length)) -ForegroundColor Gray
+
         # Re-locate vcpkg.exe from project root
         Write-Host "Re-locating vcpkg.exe from project root..." -ForegroundColor Cyan
         $vcpkgExePath = $null
@@ -244,30 +261,44 @@ jobs:
         }
 
         # Install for each triplet using manifest mode (from project root)
+        # Use explicit manifest root to ensure manifest mode
         Write-Host "Installing for x64-windows..." -ForegroundColor Cyan
-        & $vcpkgExePath install --triplet=x64-windows --no-print-usage
+        & $vcpkgExePath install --triplet=x64-windows --no-print-usage --x-manifest-root=.
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for x64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
-          Write-Host "Checking vcpkg root..." -ForegroundColor Yellow
-          & $vcpkgExePath root
-          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-          exit 1
+          Write-Host "Trying alternative manifest mode activation..." -ForegroundColor Yellow
+          # Try without specifying manifest root, let vcpkg detect automatically
+          & $vcpkgExePath install --triplet=x64-windows --no-print-usage
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Alternative method also failed (Exit code: $LASTEXITCODE)" -ForegroundColor Red
+            Write-Host "Checking vcpkg version and capabilities..." -ForegroundColor Yellow
+            & $vcpkgExePath version
+            Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+            Write-Host "vcpkg.json exists: $(Test-Path 'vcpkg.json')" -ForegroundColor Yellow
+            exit 1
+          }
         }
 
         Write-Host "Installing for x86-windows..." -ForegroundColor Cyan
-        & $vcpkgExePath install --triplet=x86-windows --no-print-usage
+        & $vcpkgExePath install --triplet=x86-windows --no-print-usage --x-manifest-root=.
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for x86-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
-          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-          exit 1
+          & $vcpkgExePath install --triplet=x86-windows --no-print-usage
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Alternative method also failed (Exit code: $LASTEXITCODE)" -ForegroundColor Red
+            exit 1
+          }
         }
 
         Write-Host "Installing for arm64-windows..." -ForegroundColor Cyan
-        & $vcpkgExePath install --triplet=arm64-windows --no-print-usage
+        & $vcpkgExePath install --triplet=arm64-windows --no-print-usage --x-manifest-root=.
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for arm64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
-          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-          exit 1
+          & $vcpkgExePath install --triplet=arm64-windows --no-print-usage
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Alternative method also failed (Exit code: $LASTEXITCODE)" -ForegroundColor Red
+            exit 1
+          }
         }
 
         # Verify installations
