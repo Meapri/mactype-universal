@@ -209,6 +209,40 @@ jobs:
         cd ..
         Write-Host "Current directory for vcpkg install: $(Get-Location)" -ForegroundColor Cyan
 
+        # Re-locate vcpkg.exe from project root
+        Write-Host "Re-locating vcpkg.exe from project root..." -ForegroundColor Cyan
+        $vcpkgExePath = $null
+        $possibleVcpkgPaths = @(
+          "vcpkg\vcpkg.exe",
+          "$env:VCPKG_ROOT\vcpkg.exe",
+          "$vcpkgRoot\vcpkg.exe",
+          (Join-Path $env:VCPKG_ROOT "vcpkg.exe"),
+          (Join-Path $vcpkgRoot "vcpkg.exe")
+        )
+
+        foreach ($path in $possibleVcpkgPaths) {
+          Write-Host "Checking for vcpkg.exe at: $path" -ForegroundColor Gray
+          if (Test-Path $path) {
+            $vcpkgExePath = $path
+            Write-Host "Found vcpkg.exe at: $path" -ForegroundColor Green
+            break
+          }
+        }
+
+        if (!$vcpkgExePath) {
+          Write-Host "ERROR: vcpkg.exe not found from project root" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Yellow
+          Write-Host "vcpkgRoot variable: $vcpkgRoot" -ForegroundColor Yellow
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
+          if (Test-Path "vcpkg") {
+            Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path "vcpkg" -Name -ErrorAction SilentlyContinue
+          }
+          exit 1
+        }
+
         # Install for each triplet using manifest mode (from project root)
         Write-Host "Installing for x64-windows..." -ForegroundColor Cyan
         & $vcpkgExePath install --triplet=x64-windows --no-print-usage
