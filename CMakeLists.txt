@@ -93,6 +93,22 @@ endif()
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
 find_package(BZip2 REQUIRED)
+
+# Optional: Check for wow64ext (32/64-bit process communication)
+# If not available, wow64ext functionality will be disabled
+find_library(WOW64EXT_LIBRARY
+    NAMES wow64ext.lib wow64ext
+    PATHS ${CMAKE_PREFIX_PATH}
+    PATH_SUFFIXES lib
+    NO_DEFAULT_PATH
+)
+if(WOW64EXT_LIBRARY)
+    message(STATUS "Found wow64ext: ${WOW64EXT_LIBRARY}")
+    add_compile_definitions(HAS_WOW64EXT)
+else()
+    message(WARNING "wow64ext not found. 32/64-bit process communication features will be disabled.")
+endif()
+
 # Find Detours (Windows API hooking library)
 # Detours doesn't provide standard CMake config files, find manually
 find_path(DETOURS_INCLUDE_DIR detours/detours.h

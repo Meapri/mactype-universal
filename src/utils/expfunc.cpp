@@ -1286,17 +1286,23 @@ EXTERN_C BOOL WINAPI GdippInjectDLL(const PROCESS_INFORMATION* ppi)
 			bTryLoadDll64 = true;
 			GetEnvironmentVariable(L"MACTYPE_X64ADDR", NULL, 0);
 			if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+#ifdef HAS_WOW64EXT
 				DWORD64 hNtdll = 0;
 				hNtdll = GetModuleHandle64(L"ntdll.dll");
 				if (hNtdll) {
 					DWORD64 pfnLdrAddr = GetProcAddress64(hNtdll, "LdrLoadDll");
 					if (pfnLdrAddr) {
 						dwLoaderOffset = (DWORD)(pfnLdrAddr - hNtdll);
+#else
+				// wow64ext not available, skip 64-bit DLL loading
+				return FALSE;
+#endif
 					}
 				}
 			}
 		}
 
+#ifdef HAS_WOW64EXT
 		opcode_data local;
 		DWORD64 remote = VirtualAllocEx64(ppi->hProcess, NULL, sizeof(opcode_data), MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 		if (!remote)
@@ -1312,6 +1318,10 @@ EXTERN_C BOOL WINAPI GdippInjectDLL(const PROCESS_INFORMATION* ppi)
 		//a();
 		ctx.Rip = (DWORD64)remote;
 		return !!SetThreadContext64(ppi->hThread, &ctx);
+#else
+		// wow64ext not available, cannot inject 64-bit code
+		return false;
+#endif
 	}
 	else {
 		CONTEXT ctx = { 0 };
