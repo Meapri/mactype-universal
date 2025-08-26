@@ -9,7 +9,6 @@
   "dependencies": [
     {
       "name": "freetype",
-      "version>=": "2.13.2",
       "features": [
         "brotli",
         "bzip2",
@@ -17,26 +16,15 @@
         "zlib"
       ]
     },
-    {
-      "name": "detours",
-      "version>=": "4.0.1"
-    },
-    {
-      "name": "nlohmann-json",
-      "version>=": "3.11.3"
-    },
+    "detours",
+    "nlohmann-json",
     "zlib",
     "libpng",
     "brotli",
     "bzip2",
     "gtest"
   ],
-  "overrides": [
-    {
-      "name": "detours",
-      "version": "4.0.1#8"
-    }
-  ],
+
   "features": {
     "test": {
       "description": "Build tests",
