@@ -7,3 +7,12 @@ Rel*/
 x64/
 *.vcxproj.user
 *.DotSettings.user
+
+# Installer files (generated, not tracked)
+installer/Output/
+installer/Files/
+
+# Build artifacts
+build/
+vcpkg/installed/
+*.log
