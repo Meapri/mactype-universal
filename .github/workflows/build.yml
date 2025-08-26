@@ -156,8 +156,8 @@ jobs:
 
         # Configure vcpkg for better performance
         Write-Host "Configuring vcpkg settings..." -ForegroundColor Cyan
-        $vcpkgRoot = $PWD
-        cd vcpkg
+        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
+        cd $vcpkgRoot
 
         # Enable binary caching and parallel downloads
         .\vcpkg.exe integrate install --dry-run | Out-Null
@@ -165,8 +165,6 @@ jobs:
         # Pre-download common packages to reduce build time
         Write-Host "Pre-downloading common dependencies..." -ForegroundColor Cyan
         .\vcpkg.exe install --triplet x64-windows --only-downloads --binarycaching
-
-        cd $vcpkgRoot
         Write-Host "vcpkg optimization complete" -ForegroundColor Green
 
     - name: Complete setup
@@ -208,13 +206,25 @@ jobs:
         # Universal Windows App 구성 (Visual Studio generator 사용)
         Write-Host "Configuring Universal Windows App (x64 + ARM64)..." -ForegroundColor Cyan
 
+        # vcpkg 경로 확인
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+
+        $vcpkgToolchain = "$vcpkgRoot/scripts/buildsystems/vcpkg.cmake"
+        Write-Host "vcpkg toolchain: $vcpkgToolchain" -ForegroundColor Cyan
+
+        if (!(Test-Path $vcpkgToolchain)) {
+          Write-Host "ERROR: vcpkg toolchain not found at $vcpkgToolchain" -ForegroundColor Red
+          exit 1
+        }
+
         # Ninja 대신 Visual Studio generator 사용 (platform 지원)
         $cmakeArgs = @(
             "..",
             "-G", "Visual Studio 17 2022",
             "-A", "x64",
             "-DCMAKE_BUILD_TYPE=Release",
-            "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "-DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain",
             "-DVCPKG_TARGET_TRIPLET=x64-windows",
             "-DBUILD_MODERN_MANAGER=ON",
             "-DCMAKE_SYSTEM_NAME=WindowsStore",
@@ -295,6 +305,17 @@ jobs:
       run: |
         Write-Host "=== Installing Multi-Platform Dependencies ===" -ForegroundColor Green
 
+        # vcpkg 경로 설정
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        $vcpkgExe = "$vcpkgRoot/vcpkg.exe"
+
+        if (!(Test-Path $vcpkgExe)) {
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExe" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Using vcpkg: $vcpkgExe" -ForegroundColor Cyan
+
         # 모든 플랫폼의 의존성을 한 번에 설치
         $platforms = @("x86-windows", "x64-windows", "arm64-windows")
 
@@ -311,14 +332,8 @@ jobs:
               "--x-packages-root", "$PWD\vcpkg-packages"
           )
 
-          $vcpkgPath = ".\vcpkg\vcpkg.exe"
-          if (Test-Path $vcpkgPath) {
-              & $vcpkgPath @installArgs
-              Write-Host "Dependencies for $triplet installed successfully" -ForegroundColor Green
-          } else {
-              Write-Host "vcpkg.exe not found" -ForegroundColor Red
-              exit 1
-          }
+          & $vcpkgExe @installArgs
+          Write-Host "Dependencies for $triplet installed successfully" -ForegroundColor Green
         }
 
         Write-Host "All platform dependencies ready" -ForegroundColor Green
@@ -346,13 +361,17 @@ jobs:
           mkdir $buildDir
           cd $buildDir
 
+          # vcpkg 경로 설정
+          $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+          $vcpkgToolchain = "$vcpkgRoot/scripts/buildsystems/vcpkg.cmake"
+
           # 플랫폼별 CMake 구성
           $cmakeArgs = @(
               "..",
               "-G", $env:CMAKE_GENERATOR,
               "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE",
               "-DCMAKE_GENERATOR_PLATFORM=$($plat.Platform)",
-              "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+              "-DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain",
               "-DVCPKG_TARGET_TRIPLET=$($plat.Triplet)",
               "-DBUILD_MODERN_AGENT=$($plat.Agent)",
               "-DBUILD_MODERN_MANAGER=$($plat.Manager)",
