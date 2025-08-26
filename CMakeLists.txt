@@ -86,6 +86,10 @@ endif()
 
 # Find required packages (Windows-specific)
 find_package(FreeType REQUIRED)
+if(NOT FreeType_FOUND)
+    message(FATAL_ERROR "FreeType not found. Please check vcpkg installation.")
+endif()
+
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
 find_package(BZip2 REQUIRED)
@@ -149,7 +153,7 @@ set(MAC_TYPE_SOURCES
     src/core/ft2vert.c
     src/core/ft_compat_ex.c
     src/core/ftref.c
-    src/core/ft\ -non-ref.cpp
+    "src/core/ft - non-ref.cpp"
     src/core/override.cpp
 
     # Settings and configuration
@@ -311,18 +315,18 @@ endif()
 # Create executable targets
 if(WIN32)
     # Main DLL
-    add_executable(MacType.Core WIN32 dllmain.cpp resource.rc)
+    add_executable(MacType.Core WIN32 src/platform/dll.cpp src/platform/resource)
     target_link_libraries(MacType.Core PRIVATE mactype)
 
     # GUI applications
-    add_executable(MacTuner WIN32 macloader.rc)
+    add_executable(MacTuner WIN32 src/platform/macloader.rc)
     target_link_libraries(MacTuner PRIVATE mactype)
 
-    add_executable(MacTray WIN32 macloader.rc)
+    add_executable(MacTray WIN32 src/platform/macloader.rc)
     target_link_libraries(MacTray PRIVATE mactype)
 endif()
 
-# Install targets
+# Install targets (exclude detours from export as it's an interface library)
 install(TARGETS mactype
     EXPORT MacTypeTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -330,6 +334,8 @@ install(TARGETS mactype
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+
+# Don't export detours as it's a local interface library
 
 # Install headers
 install(FILES ${MAC_TYPE_HEADERS}
