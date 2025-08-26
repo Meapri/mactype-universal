@@ -205,13 +205,18 @@ jobs:
           exit 1
         }
 
-        # Install for each triplet using manifest mode
+        # Go back to project root for manifest mode installation
+        cd ..
+        Write-Host "Current directory for vcpkg install: $(Get-Location)" -ForegroundColor Cyan
+
+        # Install for each triplet using manifest mode (from project root)
         Write-Host "Installing for x64-windows..." -ForegroundColor Cyan
         & $vcpkgExePath install --triplet=x64-windows --no-print-usage
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for x64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
           Write-Host "Checking vcpkg root..." -ForegroundColor Yellow
           & $vcpkgExePath root
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
           exit 1
         }
 
@@ -219,6 +224,7 @@ jobs:
         & $vcpkgExePath install --triplet=x86-windows --no-print-usage
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for x86-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
           exit 1
         }
 
@@ -226,26 +232,33 @@ jobs:
         & $vcpkgExePath install --triplet=arm64-windows --no-print-usage
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for arm64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
           exit 1
         }
-
-        cd ..
 
         # Verify installations
         Write-Host "Verifying vcpkg installations..." -ForegroundColor Cyan
 
-        # First, check the vcpkg installation structure
+        # First, check the vcpkg installation structure (in project root)
         Write-Host "Checking vcpkg installation structure..." -ForegroundColor Yellow
 
-        if (!(Test-Path "$vcpkgRoot\installed")) {
-          Write-Host "ERROR: installed directory does not exist at $vcpkgRoot\installed" -ForegroundColor Red
+        $installedPath = "vcpkg\installed"
+        if (!(Test-Path $installedPath)) {
+          Write-Host "ERROR: installed directory does not exist at $installedPath" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
           Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
-          Get-ChildItem -Path $vcpkgRoot -Name -ErrorAction SilentlyContinue
+          if (Test-Path "vcpkg") {
+            Get-ChildItem -Path "vcpkg" -Name -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "vcpkg directory does not exist!" -ForegroundColor Red
+          }
           exit 1
         }
 
         Write-Host "Contents of installed directory:" -ForegroundColor Yellow
-        $installedContents = Get-ChildItem -Path "$vcpkgRoot\installed" -Name -ErrorAction SilentlyContinue
+        $installedContents = Get-ChildItem -Path $installedPath -Name -ErrorAction SilentlyContinue
         if ($installedContents) {
           $installedContents | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
         } else {
@@ -256,24 +269,24 @@ jobs:
         $foundTriplets = @()
 
         foreach ($triplet in $triplets) {
-          $installedPath = "$vcpkgRoot\installed\$triplet"
-          Write-Host "Checking triplet: $triplet at $installedPath" -ForegroundColor Gray
+          $tripletPath = "$installedPath\$triplet"
+          Write-Host "Checking triplet: $triplet at $tripletPath" -ForegroundColor Gray
 
-          if (!(Test-Path $installedPath)) {
-            Write-Host "WARNING: Installation directory not found for ${triplet}: $installedPath" -ForegroundColor Yellow
+          if (!(Test-Path $tripletPath)) {
+            Write-Host "WARNING: Installation directory not found for ${triplet}: $tripletPath" -ForegroundColor Yellow
 
             # Try to find the triplet in subdirectories
             $possiblePaths = @(
-              "$vcpkgRoot\installed\$triplet",
-              "$vcpkgRoot\installed\x64-windows",  # fallback to x64
-              "$vcpkgRoot\installed"  # fallback to root
+              "$installedPath\$triplet",
+              "$installedPath\x64-windows",  # fallback to x64
+              "$installedPath"  # fallback to root
             )
 
             $found = $false
             foreach ($path in $possiblePaths) {
               if (Test-Path $path) {
                 Write-Host "Found alternative path for ${triplet}: $path" -ForegroundColor Cyan
-                $installedPath = $path
+                $tripletPath = $path
                 $found = $true
                 break
               }
@@ -286,15 +299,15 @@ jobs:
           }
 
           # Check if FreeType is installed
-          $freetypeLib = "$installedPath\lib\freetype.lib"
+          $freetypeLib = "$tripletPath\lib\freetype.lib"
           Write-Host "Looking for FreeType at: $freetypeLib" -ForegroundColor Gray
 
           if (!(Test-Path $freetypeLib)) {
             # Try alternative FreeType locations
             $altFreeTypePaths = @(
-              "$installedPath\lib\freetype.lib",
-              "$installedPath\debug\lib\freetyped.lib",
-              "$installedPath\lib\freetyped.lib"
+              "$tripletPath\lib\freetype.lib",
+              "$tripletPath\debug\lib\freetyped.lib",
+              "$tripletPath\lib\freetyped.lib"
             )
 
             $found = $false
@@ -309,8 +322,8 @@ jobs:
 
             if (!$found) {
               Write-Host "ERROR: FreeType not found in $triplet at any location" -ForegroundColor Red
-              Write-Host "Contents of $installedPath\lib:" -ForegroundColor Yellow
-              Get-ChildItem -Path "$installedPath\lib" -Name -ErrorAction SilentlyContinue
+              Write-Host "Contents of $tripletPath\lib:" -ForegroundColor Yellow
+              Get-ChildItem -Path "$tripletPath\lib" -Name -ErrorAction SilentlyContinue
               continue
             }
           }
@@ -318,7 +331,7 @@ jobs:
           Write-Host "✓ ${triplet}: FreeType found at $freetypeLib" -ForegroundColor Green
           $foundTriplets += @{
             Name = $triplet
-            Path = $installedPath
+            Path = $tripletPath
             FreeTypeLib = $freetypeLib
           }
         }
