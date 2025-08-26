@@ -173,6 +173,7 @@ jobs:
         # Configure CMake
         cmake .. -G "Visual Studio 17 2022" -A x64 `
                  -DCMAKE_BUILD_TYPE=Release `
+                 -DVCPKG_TARGET_TRIPLET=x64-windows `
                  -DBUILD_MODERN_MANAGER=ON
 
         if ($LASTEXITCODE -ne 0) {
@@ -278,6 +279,12 @@ jobs:
           @{Name="ARM64"; Platform="ARM64"; Agent="ON"; Manager="OFF"; Desc="ARM64 Agent + Core"}
         )
 
+        # Debug: Print platform configurations
+        Write-Host "Platform configurations:" -ForegroundColor Cyan
+        foreach ($plat in $platforms) {
+          Write-Host "  $($plat.Name): Platform='$($plat.Platform)', Agent='$($plat.Agent)', Manager='$($plat.Manager)'" -ForegroundColor Gray
+        }
+
         $buildTimes = @{}
         $totalBuildStart = Get-Date
 
@@ -293,9 +300,19 @@ jobs:
 
           # Configure CMake
           Write-Host "Configuring CMake for $($plat.Name)..." -ForegroundColor Gray
+
+          # Set vcpkg triplet based on platform
+          $vcpkgTriplet = switch ($plat.Platform) {
+            "Win32" { "x86-windows" }
+            "x64" { "x64-windows" }
+            "ARM64" { "arm64-windows" }
+            default { "x64-windows" }
+          }
+
           cmake .. -G "Visual Studio 17 2022" `
                    -DCMAKE_BUILD_TYPE=Release `
                    -DCMAKE_GENERATOR_PLATFORM=$($plat.Platform) `
+                   -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
                    -DBUILD_MODERN_AGENT=$($plat.Agent) `
                    -DBUILD_MODERN_MANAGER=$($plat.Manager) `
                    -DCMAKE_CXX_FLAGS="/MP /O2 /DNDEBUG" `
