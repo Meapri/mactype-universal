@@ -158,6 +158,108 @@ public:
             }
         }
     }
+
+    // INI 파일을 JSON으로 변환하여 로드
+    void LoadFromIniFile(LPCTSTR filename) {
+        std::ifstream ifs(filename);
+        if (!ifs.is_open()) {
+            return;
+        }
+
+        _j = json::object(); // JSON 객체 초기화
+        std::string line;
+        std::string current_section;
+
+        while (std::getline(ifs, line)) {
+            // 주석과 빈 줄 제거
+            line.erase(line.begin(), std::find_if(line.begin(), line.end(), [](unsigned char ch) {
+                return !std::isspace(ch);
+            }));
+
+            if (line.empty() || line[0] == ';' || line[0] == '#') {
+                continue;
+            }
+
+            // 섹션 처리 [SectionName]
+            if (line[0] == '[' && line.back() == ']') {
+                current_section = line.substr(1, line.size() - 2);
+                // 섹션명 정규화 (공백 제거 등)
+                current_section.erase(current_section.begin(),
+                    std::find_if(current_section.begin(), current_section.end(),
+                        [](unsigned char ch) { return !std::isspace(ch); }));
+                current_section.erase(std::find_if(current_section.rbegin(), current_section.rend(),
+                    [](unsigned char ch) { return !std::isspace(ch); }).base(), current_section.end());
+
+                // 섹션이 없으면 생성
+                if (!_j.contains(current_section)) {
+                    _j[current_section] = json::object();
+                }
+                continue;
+            }
+
+            // 키=값 처리
+            size_t equal_pos = line.find('=');
+            if (equal_pos != std::string::npos) {
+                std::string key = line.substr(0, equal_pos);
+                std::string value = line.substr(equal_pos + 1);
+
+                // 키와 값의 공백 제거
+                key.erase(key.begin(), std::find_if(key.begin(), key.end(),
+                    [](unsigned char ch) { return !std::isspace(ch); }));
+                key.erase(std::find_if(key.rbegin(), key.rend(),
+                    [](unsigned char ch) { return !std::isspace(ch); }).base(), key.end());
+
+                value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+                    [](unsigned char ch) { return !std::isspace(ch); }));
+                value.erase(std::find_if(value.rbegin(), value.rend(),
+                    [](unsigned char ch) { return !std::isspace(ch); }).base(), value.end());
+
+                // 현재 섹션이 없으면 General로 설정
+                if (current_section.empty()) {
+                    current_section = "General";
+                    if (!_j.contains(current_section)) {
+                        _j[current_section] = json::object();
+                    }
+                }
+
+                // 값 파싱 및 JSON에 저장
+                _j[current_section][key] = ParseIniValue(value);
+            }
+        }
+    }
+
+private:
+    // INI 값 파싱 (문자열, 숫자, 불리언 구분)
+    json ParseIniValue(const std::string& value) {
+        if (value.empty()) {
+            return "";
+        }
+
+        // 숫자 확인 (정수 또는 실수)
+        char* endptr;
+        long long int_val = std::strtoll(value.c_str(), &endptr, 10);
+        if (*endptr == '\0') {
+            return int_val;
+        }
+
+        double double_val = std::strtod(value.c_str(), &endptr);
+        if (*endptr == '\0') {
+            return double_val;
+        }
+
+        // 불리언 값 확인
+        std::string lower_value = value;
+        std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), ::tolower);
+        if (lower_value == "true" || lower_value == "1" || lower_value == "yes" || lower_value == "on") {
+            return true;
+        }
+        if (lower_value == "false" || lower_value == "0" || lower_value == "no" || lower_value == "off") {
+            return false;
+        }
+
+        // 문자열로 처리
+        return value;
+    }
 };
 
 // IniParser 라이브러리 제거됨 - JSON 기반 설정 시스템으로 완전 전환
