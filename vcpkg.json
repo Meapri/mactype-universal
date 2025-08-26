@@ -30,6 +30,12 @@
     "brotli",
     "bzip2"
   ],
+  "overrides": [
+    {
+      "name": "detours",
+      "version": "4.0.1#8"
+    }
+  ],
   "features": {
     "test": {
       "description": "Build tests",
