@@ -65,7 +65,18 @@ jobs:
         }
         New-Item -ItemType Directory -Path build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }}
+
+        # vcpkg toolchain 경로 확인 및 설정
+        $vcpkgToolchain = "$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake"
+        if (!(Test-Path $vcpkgToolchain)) {
+          Write-Host "vcpkg toolchain not found at: $vcpkgToolchain"
+          Write-Host "Current directory: $PWD"
+          Get-ChildItem -Path "$PWD/../vcpkg" -Recurse -Filter "vcpkg.cmake" | Select-Object FullName
+          exit 1
+        }
+
+        Write-Host "Using vcpkg toolchain: $vcpkgToolchain"
+        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }}
 
     - name: Build with CMake
       run: |
