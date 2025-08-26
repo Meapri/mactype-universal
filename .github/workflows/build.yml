@@ -547,26 +547,102 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Configure CMake
+    - name: Set up vcpkg environment
       run: |
-        Write-Host "=== Configuring CMake for Universal MacType Manager ===" -ForegroundColor Green
+        Write-Host "=== Setting up vcpkg environment ===" -ForegroundColor Green
 
-        # Set up vcpkg environment
-        $vcpkgRoot = (Get-Location).Path + "\vcpkg"
-        $env:VCPKG_ROOT = $vcpkgRoot
-        $env:PATH = "$vcpkgRoot;$env:PATH"
+        # Find vcpkg installation (it may be in different locations)
+        $vcpkgRoot = $null
+        $vcpkgExe = $null
+        $possibleVcpkgRoots = @(
+          ".\vcpkg",                    # Standard location
+          ".\vcpkg_installed\vcpkg",    # Alternative location
+          "$env:VCPKG_ROOT",           # Environment variable
+          "..\vcpkg",                  # Parent directory
+          ".\build\vcpkg"              # Build directory
+        )
 
-        Write-Host "Using vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
+        Write-Host "Searching for vcpkg installation..." -ForegroundColor Cyan
+        foreach ($root in $possibleVcpkgRoots) {
+          Write-Host "Checking: $root" -ForegroundColor Gray
+          if (Test-Path $root) {
+            $vcpkgExePath = Join-Path $root "vcpkg.exe"
+            if (Test-Path $vcpkgExePath) {
+              $vcpkgRoot = $root
+              $vcpkgExe = $vcpkgExePath
+              Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Green
+              break
+            }
+          }
+        }
 
-        # Verify vcpkg.exe exists
-        $vcpkgExe = "$vcpkgRoot\vcpkg.exe"
-        if (!(Test-Path $vcpkgExe)) {
-          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExe" -ForegroundColor Red
-          Get-ChildItem -Path $vcpkgRoot -Name
+        # If not found in standard locations, check if vcpkg was installed by setup-environment
+        if (!$vcpkgExe) {
+          Write-Host "vcpkg not found in standard locations, checking current directory structure..." -ForegroundColor Yellow
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
+
+          # Check if we're in the right project directory
+          $projectRoot = $null
+          $possibleProjectRoots = @(
+            ".",                        # Current directory
+            ".\mactype-universal",      # GitHub Actions nested directory
+            ".."                        # Parent directory
+          )
+
+          foreach ($root in $possibleProjectRoots) {
+            $testPath = Join-Path (Get-Location) $root
+            if (Test-Path (Join-Path $testPath "vcpkg.json")) {
+              $projectRoot = $testPath
+              Write-Host "Found project root at: $projectRoot" -ForegroundColor Green
+              break
+            }
+          }
+
+          if ($projectRoot) {
+            Set-Location $projectRoot
+            Write-Host "Changed to project root: $(Get-Location)" -ForegroundColor Green
+
+            # Now search for vcpkg again from project root
+            $possibleVcpkgRoots = @(
+              ".\vcpkg",
+              ".\vcpkg_installed\vcpkg"
+            )
+
+            foreach ($root in $possibleVcpkgRoots) {
+              if (Test-Path $root) {
+                $vcpkgExePath = Join-Path $root "vcpkg.exe"
+                if (Test-Path $vcpkgExePath) {
+                  $vcpkgRoot = $root
+                  $vcpkgExe = $vcpkgExePath
+                  Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Green
+                  break
+                }
+              }
+            }
+          }
+        }
+
+        if (!$vcpkgExe) {
+          Write-Host "ERROR: vcpkg.exe not found in any expected location" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
+          if (Test-Path "vcpkg") {
+            Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path "vcpkg" -Name -ErrorAction SilentlyContinue
+          }
+          Write-Host "Please ensure setup-environment job completed successfully" -ForegroundColor Yellow
           exit 1
         }
 
+        # Set environment variables
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:PATH = "$vcpkgRoot;$env:PATH"
+
         Write-Host "✓ vcpkg.exe found at $vcpkgExe" -ForegroundColor Green
+        Write-Host "VCPKG_ROOT set to: $env:VCPKG_ROOT" -ForegroundColor Cyan
 
         # Find vcpkg installation directory (flexible approach)
         $vcpkgInstalled = $null
@@ -967,7 +1043,7 @@ jobs:
             }
 
             cd ..
-          } else {
+        } else {
             Write-Host "$platform build directory not found!" -ForegroundColor Red
             exit 1
           }
