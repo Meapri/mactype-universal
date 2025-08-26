@@ -34,49 +34,21 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
-    - name: Cache Windows App SDK
-      id: cache-windows-app-sdk
-      uses: actions/cache@v4
+    - name: Setup Windows App SDK
+      uses: microsoft/setup-windows-appsdk@main
       with:
-        path: |
-          C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.*
-          C:\Program Files (x86)\WindowsApps\Microsoft.WindowsAppSDK.*
-        key: windows-app-sdk-1.4-${{ runner.os }}
-        restore-keys: |
-          windows-app-sdk-1.4-
-          windows-app-sdk-
+        version: '1.4'
 
-    - name: Install Windows App SDK
-      if: steps.cache-windows-app-sdk.outputs.cache-hit != 'true'
+    - name: Verify Windows SDK
       run: |
-        Write-Host "Installing Windows App SDK..." -ForegroundColor Green
-        winget install Microsoft.WindowsAppSDK.1.4 --accept-package-agreements --accept-source-agreements --silent --force
-
-    - name: Add Windows SDK to PATH and set compatible SDK version
-      run: |
-        echo "=== 설치된 Windows SDK 버전들 ==="
-        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name
-
-        $preferredVersions = @("10.0.26100.0", "10.0.22621.0", "10.0.22000.0", "10.0.20348.0", "10.0.19041.0")
-        $selectedSdk = $null
-        foreach ($version in $preferredVersions) {
-          $sdkIncludePath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$version"
-          if (Test-Path $sdkIncludePath) { $selectedSdk = $version; echo "선택된 Windows SDK: $version"; break }
+        Write-Host "=== Verifying Windows SDK installation ===" -ForegroundColor Green
+        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue
+        if ($sdkVersions) {
+          $latestSdk = $sdkVersions | Sort-Object Name -Descending | Select-Object -First 1
+          Write-Host "Windows SDK found: $($latestSdk.Name)" -ForegroundColor Green
+        } else {
+          Write-Host "No Windows SDK found" -ForegroundColor Yellow
         }
-        if (-not $selectedSdk -and $sdkVersions) {
-          $newestSdk = $sdkVersions | Where-Object { $_.Name -match "^\d+\.\d+\.\d+\.\d+$" } | Sort-Object Name -Descending | Select-Object -First 1
-          if ($newestSdk) { $selectedSdk = $newestSdk.Name; echo "최신 Windows SDK 사용: $selectedSdk" } else { $selectedSdk = $sdkVersions[0].Name; echo "기본 Windows SDK 사용: $selectedSdk" }
-        }
-        if ($selectedSdk) {
-          echo "WindowsSDKVersion=$selectedSdk" >> $env:GITHUB_ENV
-          echo "WINDOWS_SDK_VERSION=$selectedSdk" >> $env:GITHUB_ENV
-          # 플랫폼별 SDK bin 경로 설정
-          $sdkBinPath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64"
-          if (Test-Path $sdkBinPath) { echo "$sdkBinPath" >> $env:GITHUB_PATH }
-        }
-        echo "=== Visual Studio 설치 확인 ==="
-        Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
-        Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
 
     - name: Cache vcpkg
       uses: actions/cache@v4
@@ -185,54 +157,21 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
-    - name: Cache Windows App SDK
-      id: cache-windows-app-sdk
-      uses: actions/cache@v4
+    - name: Setup Windows App SDK
+      uses: microsoft/setup-windows-appsdk@main
       with:
-        path: |
-          C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.*
-          C:\Program Files (x86)\WindowsApps\Microsoft.WindowsAppSDK.*
-        key: windows-app-sdk-1.4-${{ runner.os }}
-        restore-keys: |
-          windows-app-sdk-1.4-
-          windows-app-sdk-
+        version: '1.4'
 
-    - name: Install Windows App SDK
-      if: steps.cache-windows-app-sdk.outputs.cache-hit != 'true'
+    - name: Verify Windows SDK
       run: |
-        Write-Host "Installing Windows App SDK..." -ForegroundColor Green
-        winget install Microsoft.WindowsAppSDK.1.4 --accept-package-agreements --accept-source-agreements --silent --force
-
-    - name: Add Windows SDK to PATH and set compatible SDK version
-      run: |
-        echo "=== 설치된 Windows SDK 버전들 ==="
-        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue | Sort-Object Name
-        $sdkVersions | ForEach-Object { echo "  - $($_.Name)" }
-        $preferredVersions = @("10.0.26100.0", "10.0.22621.0", "10.0.22000.0", "10.0.20348.0", "10.0.19041.0")
-        $selectedSdk = $null
-        foreach ($version in $preferredVersions) {
-          $sdkIncludePath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$version"
-          if (Test-Path $sdkIncludePath) { $selectedSdk = $version; echo "선택된 Windows SDK: $version"; break }
+        Write-Host "=== Verifying Windows SDK installation ===" -ForegroundColor Green
+        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue
+        if ($sdkVersions) {
+          $latestSdk = $sdkVersions | Sort-Object Name -Descending | Select-Object -First 1
+          Write-Host "Windows SDK found: $($latestSdk.Name)" -ForegroundColor Green
+        } else {
+          Write-Host "No Windows SDK found" -ForegroundColor Yellow
         }
-        if (-not $selectedSdk -and $sdkVersions) {
-          $newestSdk = $sdkVersions | Where-Object { $_.Name -match "^\d+\.\d+\.\d+\.\d+$" } | Sort-Object Name -Descending | Select-Object -First 1
-          if ($newestSdk) { $selectedSdk = $newestSdk.Name; echo "최신 Windows SDK 사용: $selectedSdk" } else { $selectedSdk = $sdkVersions[0].Name; echo "기본 Windows SDK 사용: $selectedSdk" }
-        }
-        if ($selectedSdk) {
-          echo "WindowsSDKVersion=$selectedSdk" >> $env:GITHUB_ENV
-          echo "WINDOWS_SDK_VERSION=$selectedSdk" >> $env:GITHUB_ENV
-          # 플랫폼별 SDK bin 경로 설정
-          $sdkBinPath = switch ("${{ matrix.platform }}") {
-            "x86" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x86" }
-            "x64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }
-            "ARM64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\arm64" }  # ARM64 네이티브 컴파일
-            default { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }
-          }
-          if (Test-Path $sdkBinPath) { echo "$sdkBinPath" >> $env:GITHUB_PATH }
-        }
-        echo "=== Visual Studio 설치 확인 ==="
-        Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
-        Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
 
     - name: Cache vcpkg
       uses: actions/cache@v4
