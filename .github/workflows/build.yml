@@ -386,6 +386,27 @@ jobs:
         if ($allFiles.Count -gt 0) {
           Write-Host "Build artifacts found:" -ForegroundColor Green
 
+          # 플랫폼별로 다른 에이전트 파일명 확인
+          $expectedAgentName = if ("${{ matrix.platform }}" -eq "ARM64") {
+            "mt64agnt-arm64.exe"
+          } elseif ("${{ matrix.platform }}" -eq "x64") {
+            "mt64agnt-x64.exe"
+          } else {
+            "MacType.Core.dll"  # x86의 경우 코어 DLL만
+          }
+
+          # 에이전트 파일 존재 확인 (x86 제외)
+          if ("${{ matrix.platform }}" -ne "x86") {
+            $agentFile = $allFiles | Where-Object { $_.Name -eq $expectedAgentName }
+            if (-not $agentFile) {
+              Write-Host "Warning: Expected agent file '$expectedAgentName' not found" -ForegroundColor Yellow
+              Write-Host "Available files:" -ForegroundColor Gray
+              $allFiles | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor Gray }
+            } else {
+              Write-Host "Found expected agent: $expectedAgentName" -ForegroundColor Green
+            }
+          }
+
           # 파일별 정보 출력
           $totalSize = 0
           $allFiles | Sort-Object Length -Descending | ForEach-Object {

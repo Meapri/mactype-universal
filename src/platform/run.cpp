@@ -272,8 +272,12 @@ static HRESULT HookAndExecute(int show)
 // 32비트 프로세스만 직접 처리
 return S_OK;  // 기존 로직으로 진행
 #else
-// x64/ARM64 Windows에서는 mt64agnt 사용
-ShellExecute(NULL, NULL, L"mt64agnt.exe", cmdline, NULL, SW_SHOW);
+// x64/ARM64 Windows에서는 플랫폼별 mt64agnt 사용
+#ifdef _M_ARM64
+ShellExecute(NULL, NULL, L"mt64agnt-arm64.exe", cmdline, NULL, SW_SHOW);
+#else
+ShellExecute(NULL, NULL, L"mt64agnt-x64.exe", cmdline, NULL, SW_SHOW);
+#endif
 return S_OK;
 #endif
 

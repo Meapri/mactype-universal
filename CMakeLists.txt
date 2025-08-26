@@ -442,32 +442,44 @@ if(WIN32)
             src/platform/agent/utils/winrt_helper.cpp
         )
 
-        # Add WinUI 3 executable
-        add_executable(mt64agnt WIN32 ${AGENT_SOURCES})
+        # 플랫폼별로 다른 타겟 이름 설정
+        if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
+            set(AGENT_TARGET_NAME "mt64agnt-arm64")
+            set(WINAPP_PLATFORM "ARM64")
+        elseif(CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
+            set(AGENT_TARGET_NAME "mt64agnt-x64")
+            set(WINAPP_PLATFORM "x64")
+        else()
+            set(AGENT_TARGET_NAME "mt64agnt-x64")
+            set(WINAPP_PLATFORM "x64")
+        endif()
+
+        # Add WinUI 3 executable with platform-specific name
+        add_executable(${AGENT_TARGET_NAME} WIN32 ${AGENT_SOURCES})
 
         # Set WinUI 3 properties
-        set_target_properties(mt64agnt PROPERTIES
-            VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Platform x64
+        set_target_properties(${AGENT_TARGET_NAME} PROPERTIES
+            VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Platform ${WINAPP_PLATFORM}
             VS_GLOBAL_WindowsAppSDKBootstrapAutoInitializeOptions_Version 1.4
             VS_PACKAGE_REFERENCES "Microsoft.WindowsAppSDK_1.4"
         )
 
         # Link dependencies
-        target_link_libraries(mt64agnt
+        target_link_libraries(${AGENT_TARGET_NAME}
             PRIVATE
             mactype
             Microsoft::WindowsAppSDK
         )
 
         # Include directories
-        target_include_directories(mt64agnt PRIVATE
+        target_include_directories(${AGENT_TARGET_NAME} PRIVATE
             src/platform/agent
             src
         )
 
         # Precompiled headers for better build performance
         if(ENABLE_PCH)
-            target_precompile_headers(mt64agnt PRIVATE
+            target_precompile_headers(${AGENT_TARGET_NAME} PRIVATE
                 <winrt/Windows.Foundation.h>
                 <winrt/Windows.Security.Cryptography.h>
                 <memory>
@@ -477,7 +489,7 @@ if(WIN32)
         endif()
 
         # Set C++/WinRT properties
-        set_target_properties(mt64agnt PROPERTIES
+        set_target_properties(${AGENT_TARGET_NAME} PROPERTIES
             CXX_STANDARD 20
             CXX_STANDARD_REQUIRED ON
         )
@@ -505,9 +517,15 @@ if(WIN32)
 
     # Install modern agent if built
     if(BUILD_MODERN_AGENT)
-        install(TARGETS mt64agnt
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        )
+        if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
+            install(TARGETS mt64agnt-arm64
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            )
+        else()
+            install(TARGETS mt64agnt-x64
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            )
+        endif()
     endif()
 endif()
 
