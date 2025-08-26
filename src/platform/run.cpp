@@ -265,17 +265,16 @@ static HRESULT HookAndExecute(int show)
 
 	*CharPrevW(cmdline, p) = L'\0';
 
-// now we got the full cmdline for external exetuble. let's check if we can hook into it
+// Modern approach: mt64agnt handles all architectures
+// mt64agnt automatically detects process architecture and injects appropriate DLL
 #ifdef _M_IX86
-	if (isX64PE(argv[1])) {
-		ShellExecute(NULL, NULL, L"macloader64.exe", cmdline, NULL, SW_SHOW);
-		return S_OK;
-	}
+// x86 Windows에서는 mt64agnt를 실행할 수 없음 (32비트 OS)
+// 32비트 프로세스만 직접 처리
+return S_OK;  // 기존 로직으로 진행
 #else
-	if (!isX64PE(argv[1])) {
-		ShellExecute(NULL, NULL, L"macloader.exe", cmdline, NULL, SW_SHOW);
-		return S_OK;
-	}
+// x64/ARM64 Windows에서는 mt64agnt 사용
+ShellExecute(NULL, NULL, L"mt64agnt.exe", cmdline, NULL, SW_SHOW);
+return S_OK;
 #endif
 
 	WCHAR file[MAX_PATH], dir[MAX_PATH];
