@@ -265,36 +265,210 @@ jobs:
         retention-days: 30
         if-no-files-found: error
 
-  # 플랫폼별 에이전트 + 코어 빌드 (매니저 제외)
+  # 플랫폼별 에이전트 + 코어 빌드 (x64 호스트에서 크로스 컴파일)
   build-agents:
-    name: Build ${{ matrix.platform }} Agent (${{ matrix.type }})
+    name: Build All Platforms (x64 Host)
     runs-on: windows-latest
     needs: setup-environment
-    timeout-minutes: 25
-
-    # 플랫폼별 에이전트 + 코어 빌드 매트릭스
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: x86
-            type: "Core DLL only"
-            build_agent: "OFF"
-            build_manager: "OFF"
-            description: "32-bit core DLL for 32-bit app support"
-          - platform: x64
-            type: "Agent + Core"
-            build_agent: "ON"
-            build_manager: "OFF"
-            description: "64-bit agent and core DLL"
-          - platform: ARM64
-            type: "Agent + Core"
-            build_agent: "ON"
-            build_manager: "OFF"
-            description: "ARM64 agent and core DLL"
-        configuration: [Release]
+    timeout-minutes: 35
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Restore environment
+      run: |
+        Write-Host "Restoring build environment..." -ForegroundColor Cyan
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        if (Test-Path $vcpkgRoot) {
+            echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+            echo "$vcpkgRoot" >> $env:GITHUB_PATH
+            Write-Host "vcpkg root restored: $vcpkgRoot" -ForegroundColor Green
+        } else {
+            Write-Host "vcpkg root not found: $vcpkgRoot" -ForegroundColor Red
+            exit 1
+        }
+
+    - name: Install multi-platform dependencies
+      run: |
+        Write-Host "=== Installing Multi-Platform Dependencies ===" -ForegroundColor Green
+
+        # 모든 플랫폼의 의존성을 한 번에 설치
+        $platforms = @("x86-windows", "x64-windows", "arm64-windows")
+
+        foreach ($triplet in $platforms) {
+          Write-Host "Installing dependencies for $triplet..." -ForegroundColor Cyan
+
+          $installArgs = @(
+              "install",
+              "--triplet", $triplet,
+              "--binarycaching",
+              "--downloads-root", "$PWD\vcpkg-downloads",
+              "--x-buildtrees-root", "$PWD\vcpkg-buildtrees",
+              "--x-install-root", "$PWD\vcpkg-installed",
+              "--x-packages-root", "$PWD\vcpkg-packages"
+          )
+
+          $vcpkgPath = ".\vcpkg\vcpkg.exe"
+          if (Test-Path $vcpkgPath) {
+              & $vcpkgPath @installArgs
+              Write-Host "Dependencies for $triplet installed successfully" -ForegroundColor Green
+          } else {
+              Write-Host "vcpkg.exe not found" -ForegroundColor Red
+              exit 1
+          }
+        }
+
+        Write-Host "All platform dependencies ready" -ForegroundColor Green
+
+    - name: Build All Platforms
+      run: |
+        Write-Host "=== Building All Platforms (x64 Host) ===" -ForegroundColor Green
+
+        # 플랫폼별 빌드 설정
+        $platforms = @(
+          @{Name="x86"; Platform="Win32"; Triplet="x86-windows"; Agent="OFF"; Manager="OFF"; Desc="32-bit Core DLL"},
+          @{Name="x64"; Platform="x64"; Triplet="x64-windows"; Agent="ON"; Manager="OFF"; Desc="64-bit Agent + Core"},
+          @{Name="ARM64"; Platform="ARM64"; Triplet="arm64-windows"; Agent="ON"; Manager="OFF"; Desc="ARM64 Agent + Core"}
+        )
+
+        $totalBuildStart = Get-Date
+
+        foreach ($plat in $platforms) {
+          Write-Host "Building $($plat.Name) ($($plat.Desc))..." -ForegroundColor Cyan
+
+          $buildDir = "build-$($plat.Name)"
+          if (Test-Path $buildDir) {
+            Remove-Item -Recurse -Force $buildDir
+          }
+          mkdir $buildDir
+          cd $buildDir
+
+          # 플랫폼별 CMake 구성
+          $cmakeArgs = @(
+              "..",
+              "-G", $env:CMAKE_GENERATOR,
+              "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE",
+              "-DCMAKE_GENERATOR_PLATFORM=$($plat.Platform)",
+              "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+              "-DVCPKG_TARGET_TRIPLET=$($plat.Triplet)",
+              "-DBUILD_MODERN_AGENT=$($plat.Agent)",
+              "-DBUILD_MODERN_MANAGER=$($plat.Manager)",
+              "-DCMAKE_CXX_FLAGS=/MP /O2 /DNDEBUG",
+              "-DCMAKE_EXE_LINKER_FLAGS=/OPT:REF /OPT:ICF",
+              "-DCMAKE_SHARED_LINKER_FLAGS=/OPT:REF /OPT:ICF",
+              "-DCMAKE_C_FLAGS=/MP /O2 /DNDEBUG"
+          )
+
+          & cmake @cmakeArgs
+
+          # 병렬 빌드
+          $parallelJobs = [math]::Min([int]$env:CMAKE_BUILD_PARALLEL_LEVEL, [int]$env:NUMBER_OF_PROCESSORS + 2)
+          Write-Host "Building with $parallelJobs parallel jobs..." -ForegroundColor Gray
+
+          $buildStart = Get-Date
+          cmake --build . --config $env:BUILD_TYPE --parallel $parallelJobs --verbose
+          $buildEnd = Get-Date
+          $buildTime = ($buildEnd - $buildStart).TotalSeconds
+
+          Write-Host "$($plat.Name) build completed in $($buildTime.ToString("F1"))s" -ForegroundColor Green
+
+          cd ..
+        }
+
+        $totalBuildEnd = Get-Date
+        $totalBuildTime = ($totalBuildEnd - $totalBuildStart).TotalSeconds
+        Write-Host "All platforms built in $($totalBuildTime.ToString("F1")) seconds" -ForegroundColor Green
+
+    - name: Create Platform Packages
+      run: |
+        Write-Host "=== Creating Platform Packages ===" -ForegroundColor Green
+
+        $platforms = @("x86", "x64", "ARM64")
+
+        foreach ($platform in $platforms) {
+          Write-Host "Creating $platform package..." -ForegroundColor Cyan
+
+          $buildDir = "build-$platform"
+          if (Test-Path $buildDir) {
+            cd $buildDir
+
+            # 파일 수집
+            if ($platform -eq "x86") {
+              $files = Get-ChildItem -Path "." -Include "*.dll" -Recurse
+              $expectedAgent = "MacType.Core.dll"
+            } else {
+              $files = Get-ChildItem -Path "." -Include "*.exe", "*.dll" -Recurse
+              $expectedAgent = "mt64agnt-$platform.exe"
+            }
+
+            if ($files.Count -gt 0) {
+              # 에이전트 파일 검증 (x86 제외)
+              if ($platform -ne "x86") {
+                $agentFile = $files | Where-Object { $_.Name -eq $expectedAgent }
+                if (-not $agentFile) {
+                  Write-Host "Warning: Expected agent file '$expectedAgent' not found" -ForegroundColor Yellow
+                } else {
+                  Write-Host "Found expected agent: $expectedAgent" -ForegroundColor Green
+                }
+              }
+
+              # 파일 정보 출력
+              $totalSize = 0
+              $files | Sort-Object Length -Descending | ForEach-Object {
+                $sizeKB = [math]::Round($_.Length / 1KB, 2)
+                $totalSize += $_.Length
+                Write-Host "  $($_.Name) ($sizeKB KB)" -ForegroundColor Gray
+              }
+
+              $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+              Write-Host "$platform package size: $totalSizeMB MB" -ForegroundColor Cyan
+
+              # 압축
+              $compressionLevel = if ($platform -eq "x86") { "Fastest" } else { $env:COMPRESSION_LEVEL }
+              Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-$platform-Release.zip" -CompressionLevel $compressionLevel
+
+              Write-Host "$platform package created" -ForegroundColor Green
+            } else {
+              Write-Host "No $platform build files found!" -ForegroundColor Red
+              exit 1
+            }
+
+            cd ..
+          } else {
+            Write-Host "$platform build directory not found!" -ForegroundColor Red
+            exit 1
+          }
+        }
+
+        Write-Host "All platform packages created" -ForegroundColor Green
+
+    - name: Upload All Platform Builds
+      run: |
+        Write-Host "=== Uploading All Platform Builds ===" -ForegroundColor Green
+
+        $platforms = @("x86", "x64", "ARM64")
+
+        foreach ($platform in $platforms) {
+          $zipPath = "MacType-$platform-Release.zip"
+          if (Test-Path $zipPath) {
+            Write-Host "Uploading $platform build..." -ForegroundColor Cyan
+          } else {
+            Write-Host "$platform ZIP not found!" -ForegroundColor Red
+            exit 1
+          }
+        }
+
+        Write-Host "All platform builds uploaded successfully" -ForegroundColor Green
+
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacType-All-Platforms-Release
+        path: MacType-*-Release.zip
+        retention-days: 30
+        if-no-files-found: error
     - name: Checkout code
       uses: actions/checkout@v4
       with:
