@@ -4,7 +4,7 @@ MacType
 
 **Windows 64-bit + ARM64** better font rendering solution.
 
-> **⚠️ Important**: MacType supports 64-bit Windows and ARM64 Windows only. 32-bit Windows support has been discontinued to focus on modern Windows architectures and ARM64 ecosystem growth.
+> **⚠️ Important**: MacType supports 64-bit Windows and ARM64 Windows platforms only. 32-bit Windows OS support has been discontinued, but 32-bit applications are still supported on 64-bit Windows through WOW64. This focuses on modern Windows architectures while maintaining app compatibility.
 
 Latest build
 ------------------
