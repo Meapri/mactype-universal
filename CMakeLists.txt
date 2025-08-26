@@ -384,16 +384,11 @@ if(WIN32)
         set_target_properties(MacType.Core PROPERTIES OUTPUT_NAME "MacType")
     endif()
 
-    # GUI applications
-    add_executable(MacTuner WIN32 src/platform/macloader.rc)
-    target_link_libraries(MacTuner PRIVATE mactype)
-
-    add_executable(MacTray WIN32 src/platform/macloader.rc)
-    target_link_libraries(MacTray PRIVATE mactype)
-
-    # Loader executable for MacType.Core.dll
-    add_executable(MacType.Loader WIN32 src/platform/run.cpp)
-    target_link_libraries(MacType.Loader PRIVATE mactype)
+    # Legacy GUI applications - excluded from build
+    # TODO: Replace with modern WinUI 3 applications (MacWiz and MacTuner)
+    # add_executable(MacTuner WIN32 src/platform/macloader.rc)
+    # add_executable(MacTray WIN32 src/platform/macloader.rc)
+    # add_executable(MacType.Loader WIN32 src/platform/run.cpp)
 
     # Modern mt64agnt with WinUI 3
     option(BUILD_MODERN_AGENT "Build the modern mt64agnt with WinUI 3" ON)
@@ -503,7 +498,7 @@ install(FILES ${MAC_TYPE_HEADERS}
 
 # Install executables
 if(WIN32)
-    install(TARGETS MacType.Core MacTuner MacTray
+    install(TARGETS MacType.Core  # Legacy GUI apps excluded - modern WinUI 3 apps will replace them
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 
