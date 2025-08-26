@@ -60,7 +60,10 @@ jobs:
 
     - name: Configure CMake
       run: |
-        mkdir build
+        if (Test-Path "build") {
+          Remove-Item -Recurse -Force build
+        }
+        New-Item -ItemType Directory -Path build
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }}
 
