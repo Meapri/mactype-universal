@@ -203,12 +203,32 @@ jobs:
 
         Write-Host "Using vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
 
+        # Verify vcpkg installation
+        $vcpkgInstalled = "$vcpkgRoot\installed\x64-windows"
+        if (!(Test-Path "$vcpkgInstalled")) {
+          Write-Host "ERROR: vcpkg installed directory not found at $vcpkgInstalled" -ForegroundColor Red
+          Get-ChildItem -Path "$vcpkgRoot\installed" -ErrorAction SilentlyContinue
+          exit 1
+        }
+
+        Write-Host "vcpkg installed at: $vcpkgInstalled" -ForegroundColor Green
+
+        # Verify FreeType exists
+        $freetypeLib = "$vcpkgInstalled\lib\freetype.lib"
+        if (!(Test-Path $freetypeLib)) {
+          Write-Host "ERROR: FreeType library not found at $freetypeLib" -ForegroundColor Red
+          Get-ChildItem -Path "$vcpkgInstalled\lib" -Name -ErrorAction SilentlyContinue
+          exit 1
+        }
+
+        Write-Host "FreeType found at: $freetypeLib" -ForegroundColor Green
+
         # Create build directory
         mkdir build-manager
         cd build-manager
 
         # Configure CMake
-        $vcpkgInstalled = "$vcpkgRoot\installed\x64-windows"
+        Write-Host "CMAKE_PREFIX_PATH: $vcpkgInstalled" -ForegroundColor Cyan
         cmake .. -G "Visual Studio 17 2022" -A x64 `
                  -DCMAKE_BUILD_TYPE=Release `
                  -DCMAKE_PREFIX_PATH="$vcpkgInstalled" `
@@ -360,6 +380,25 @@ jobs:
 
           # Set vcpkg installed path for this triplet
           $vcpkgInstalled = "$vcpkgRoot\installed\$vcpkgTriplet"
+
+          # Verify vcpkg installation for this triplet
+          if (!(Test-Path "$vcpkgInstalled")) {
+            Write-Host "ERROR: vcpkg installed directory not found for $vcpkgTriplet at $vcpkgInstalled" -ForegroundColor Red
+            Get-ChildItem -Path "$vcpkgRoot\installed" -Name -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          Write-Host "vcpkg installed for $($plat.Name): $vcpkgInstalled" -ForegroundColor Green
+
+          # Verify FreeType exists for this triplet
+          $freetypeLib = "$vcpkgInstalled\lib\freetype.lib"
+          if (!(Test-Path $freetypeLib)) {
+            Write-Host "ERROR: FreeType library not found for $vcpkgTriplet at $freetypeLib" -ForegroundColor Red
+            Get-ChildItem -Path "$vcpkgInstalled\lib" -Name -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          Write-Host "FreeType found for $($plat.Name): $freetypeLib" -ForegroundColor Green
 
           if ($plat.Platform -eq "Win32") {
             cmake .. -G "Visual Studio 17 2022" -A Win32 `

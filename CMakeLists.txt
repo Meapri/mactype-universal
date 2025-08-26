@@ -98,15 +98,24 @@ if(VCPKG_INSTALLED_DIR AND VCPKG_TARGET_TRIPLET)
         NO_DEFAULT_PATH
     )
 else()
-    # Fallback: try to find in CMAKE_PREFIX_PATH
+    # Fallback: try to find in CMAKE_PREFIX_PATH or standard paths
     find_path(FREETYPE_INCLUDE_DIR ft2build.h
         PATHS ${CMAKE_PREFIX_PATH}/include/freetype2
               ${CMAKE_PREFIX_PATH}/include
+              $ENV{VCPKG_ROOT}/installed/x64-windows/include/freetype2
+              $ENV{VCPKG_ROOT}/installed/x64-windows/include
+              $ENV{VCPKG_ROOT}/installed/x86-windows/include/freetype2
+              $ENV{VCPKG_ROOT}/installed/x86-windows/include
+              $ENV{VCPKG_ROOT}/installed/arm64-windows/include/freetype2
+              $ENV{VCPKG_ROOT}/installed/arm64-windows/include
     )
 
     find_library(FREETYPE_LIBRARY
         NAMES freetype.lib freetype
         PATHS ${CMAKE_PREFIX_PATH}/lib
+              $ENV{VCPKG_ROOT}/installed/x64-windows/lib
+              $ENV{VCPKG_ROOT}/installed/x86-windows/lib
+              $ENV{VCPKG_ROOT}/installed/arm64-windows/lib
     )
 endif()
 
