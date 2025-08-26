@@ -392,40 +392,101 @@ jobs:
       run: |
         Write-Host "=== Completing environment setup ===" -ForegroundColor Green
 
-        # 환경 검증
-        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
-        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
+        try {
+          # 환경 검증
+          $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
+          if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+            Write-Host "ERROR: vcpkg-root output is empty" -ForegroundColor Red
+            exit 1
+          }
 
-        if (!(Test-Path $vcpkgExePath)) {
-          Write-Host "ERROR: vcpkg.exe not found at expected location: $vcpkgExePath" -ForegroundColor Red
+          $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
+          Write-Host "Checking vcpkg at: $vcpkgExePath" -ForegroundColor Cyan
+
+          if (!(Test-Path $vcpkgExePath)) {
+            Write-Host "ERROR: vcpkg.exe not found at expected location: $vcpkgExePath" -ForegroundColor Red
+            Write-Host "Directory contents:" -ForegroundColor Yellow
+            if (Test-Path $vcpkgRoot) {
+              Get-ChildItem $vcpkgRoot -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            } else {
+              Write-Host "  vcpkg root directory not found: $vcpkgRoot" -ForegroundColor Red
+            }
+            exit 1
+          }
+
+          if (!(Test-Path "vcpkg")) {
+            Write-Host "ERROR: vcpkg directory not found in workspace" -ForegroundColor Red
+            Write-Host "Current directory contents:" -ForegroundColor Yellow
+            Get-ChildItem -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            exit 1
+          }
+
+          # 도구 가용성 검증
+          Write-Host "Verifying tool availability..." -ForegroundColor Cyan
+
+          $cmakeAvailable = $null
+          $ninjaAvailable = $null
+
+          try {
+            $cmakeAvailable = Get-Command cmake -ErrorAction Stop
+            Write-Host "  ✓ CMake available: $($cmakeAvailable.Source)" -ForegroundColor Green
+          }
+          catch {
+            Write-Host "  ✗ CMake not available: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+
+          try {
+            $ninjaAvailable = Get-Command ninja -ErrorAction Stop
+            Write-Host "  ✓ Ninja available: $($ninjaAvailable.Source)" -ForegroundColor Green
+          }
+          catch {
+            Write-Host "  ✗ Ninja not available: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+
+          # 설정 완료 시간 기록
+          $setupStartTime = Get-Date
+          $setupTime = $setupStartTime.ToString("o")
+          $duration = [math]::Round((Get-Date - $setupStartTime).TotalSeconds, 2)
+
+          # GitHub Output 설정 (명시적 확인)
+          $outputFile = $env:GITHUB_OUTPUT
+          Write-Host "Setting outputs to: $outputFile" -ForegroundColor Gray
+
+          echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
+          echo "duration=$duration" >> $env:GITHUB_OUTPUT
+
+          # Output 파일 확인
+          if (Test-Path $env:GITHUB_OUTPUT) {
+            Write-Host "✓ Outputs written to $env:GITHUB_OUTPUT" -ForegroundColor Green
+          } else {
+            Write-Host "✗ Output file not found: $env:GITHUB_OUTPUT" -ForegroundColor Red
+            exit 1
+          }
+
+          Write-Host "Environment setup completed successfully" -ForegroundColor Green
+          Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+          Write-Host "vcpkg executable: $vcpkgExePath" -ForegroundColor Cyan
+          Write-Host "Total setup duration: $duration seconds" -ForegroundColor Cyan
+
+          # 최종 상태 요약
+          Write-Host "Setup verification summary:" -ForegroundColor Cyan
+          Write-Host "  ✓ vcpkg available: $(Test-Path $vcpkgExePath)" -ForegroundColor Green
+          Write-Host "  ✓ CMake available: $($cmakeAvailable -ne $null)" -ForegroundColor Green
+          Write-Host "  ✓ Ninja available: $($ninjaAvailable -ne $null)" -ForegroundColor Green
+          Write-Host "  ✓ Outputs set: $(Test-Path $env:GITHUB_OUTPUT)" -ForegroundColor Green
+
+          Write-Host "Environment setup completed successfully!" -ForegroundColor Green
+
+          # 최종 성공 표시
+          Write-Host "::set-output name=success::true"
+
+        }
+        catch {
+          Write-Host "ERROR: Setup completion failed with exception" -ForegroundColor Red
+          Write-Host "Exception: $($_.Exception.Message)" -ForegroundColor Red
+          Write-Host "StackTrace: $($_.ScriptStackTrace)" -ForegroundColor Red
           exit 1
         }
-
-        if (!(Test-Path "vcpkg")) {
-          Write-Host "ERROR: vcpkg directory not found" -ForegroundColor Red
-          exit 1
-        }
-
-        # 설정 완료 시간 기록
-        $setupStartTime = Get-Date
-        $setupTime = $setupStartTime.ToString("o")
-        $duration = [math]::Round((Get-Date - $setupStartTime).TotalSeconds, 2)
-
-        echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
-        echo "duration=$duration" >> $env:GITHUB_OUTPUT
-
-        Write-Host "Environment setup completed successfully" -ForegroundColor Green
-        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
-        Write-Host "vcpkg executable: $vcpkgExePath" -ForegroundColor Cyan
-        Write-Host "Total setup duration: $duration seconds" -ForegroundColor Cyan
-
-        # 최종 상태 확인
-        Write-Host "Setup verification:" -ForegroundColor Cyan
-        Write-Host "  ✓ vcpkg available: $(Test-Path $vcpkgExePath)" -ForegroundColor Green
-        Write-Host "  ✓ CMake available: $(Get-Command cmake -ErrorAction SilentlyContinue)" -ForegroundColor Green
-        Write-Host "  ✓ Ninja available: $(Get-Command ninja -ErrorAction SilentlyContinue)" -ForegroundColor Green
-
-        Write-Host "Environment setup completed successfully!" -ForegroundColor Green
 
   # Universal Manager 빌드 (x64 + ARM64 지원)
   build-manager:
