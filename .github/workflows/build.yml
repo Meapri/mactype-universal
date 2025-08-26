@@ -148,12 +148,17 @@ jobs:
         # Install dependencies using manifest mode
         Write-Host "Installing dependencies..." -ForegroundColor Cyan
 
-        # Verify vcpkg.json exists in project root
-        $vcpkgJsonPath = "..\vcpkg.json"
+        # Verify current directory structure
+        Write-Host "Current directory: $(Get-Location)" -ForegroundColor Cyan
+        Write-Host "Contents of current directory:" -ForegroundColor Gray
+        Get-ChildItem -Path "." -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+
+        # Verify vcpkg.json exists in current directory (project root)
+        $vcpkgJsonPath = ".\vcpkg.json"
         if (!(Test-Path $vcpkgJsonPath)) {
           Write-Host "ERROR: vcpkg.json not found at $vcpkgJsonPath" -ForegroundColor Red
-          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-          Get-ChildItem -Path ".." -Name
+          Write-Host "Looking for vcpkg.json in current directory..." -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -Filter "*.json"
           exit 1
         }
 
@@ -166,8 +171,6 @@ jobs:
           Write-Host "ERROR: vcpkg version check failed" -ForegroundColor Red
           exit 1
         }
-
-        cd ..
 
         # Install for each triplet using manifest mode
         Write-Host "Installing for x64-windows..." -ForegroundColor Cyan
@@ -192,8 +195,6 @@ jobs:
           Write-Host "ERROR: Failed to install dependencies for arm64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
           exit 1
         }
-
-        cd vcpkg
 
         cd ..
 
