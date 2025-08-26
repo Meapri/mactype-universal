@@ -176,9 +176,9 @@ jobs:
         echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
         Write-Host "Environment setup completed at $setupTime" -ForegroundColor Green
 
-  # Universal Manager 빌드 (x64 전용)
+  # Universal Manager 빌드 (x64 + ARM64 지원)
   build-manager:
-    name: Build MacType Manager (x64)
+    name: Build Universal MacType Manager
     runs-on: windows-latest
     needs: setup-environment
     timeout-minutes: 30
@@ -205,8 +205,8 @@ jobs:
         mkdir build-manager
         cd build-manager
 
-        # Universal Windows App 구성 (단순화)
-        Write-Host "Configuring Universal App..." -ForegroundColor Cyan
+        # Universal Windows App 구성 (유니버셜 빌드)
+        Write-Host "Configuring Universal Windows App (x64 + ARM64)..." -ForegroundColor Cyan
         cmake .. `
           -G Ninja `
           -DCMAKE_BUILD_TYPE=Release `
@@ -218,9 +218,15 @@ jobs:
           -DCMAKE_SYSTEM_NAME=WindowsStore `
           -DCMAKE_SYSTEM_VERSION=10.0
 
-        # 병렬 빌드
-        Write-Host "Building Universal Manager..." -ForegroundColor Cyan
-        cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+        # Universal Windows Platform 앱 빌드
+        Write-Host "Building Universal MacType Manager (x64 + ARM64)..." -ForegroundColor Cyan
+        cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS --target MacTypeManager
+
+        # 빌드 결과 확인
+        Write-Host "Universal Manager build completed. Checking artifacts..." -ForegroundColor Cyan
+        Get-ChildItem -Path "." -Include "*.exe", "*.dll", "*.msix", "*.appx" -Recurse | ForEach-Object {
+          Write-Host "  📦 $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor Green
+        }
 
     - name: Create Universal Manager Package
       run: |
@@ -254,14 +260,14 @@ jobs:
         retention-days: 30
         if-no-files-found: error
 
-  # 플랫폼별 빌드 (x86 코어 + x64/ARM64 Agents)
-  build-platforms:
-    name: Build ${{ matrix.platform }} (${{ matrix.type }})
+  # 플랫폼별 에이전트 + 코어 빌드 (매니저 제외)
+  build-agents:
+    name: Build ${{ matrix.platform }} Agent (${{ matrix.type }})
     runs-on: windows-latest
     needs: setup-environment
     timeout-minutes: 25
 
-    # 플랫폼별 빌드 매트릭스 명시적 설정
+    # 플랫폼별 에이전트 + 코어 빌드 매트릭스
     strategy:
       fail-fast: false
       matrix:
@@ -269,15 +275,18 @@ jobs:
           - platform: x86
             type: "Core DLL only"
             build_agent: "OFF"
+            build_manager: "OFF"
             description: "32-bit core DLL for 32-bit app support"
           - platform: x64
             type: "Agent + Core"
             build_agent: "ON"
-            description: "64-bit agent with full functionality"
+            build_manager: "OFF"
+            description: "64-bit agent and core DLL"
           - platform: ARM64
             type: "Agent + Core"
             build_agent: "ON"
-            description: "ARM64 agent with full functionality"
+            build_manager: "OFF"
+            description: "ARM64 agent and core DLL"
         configuration: [Release]
 
     steps:
@@ -325,9 +334,10 @@ jobs:
 
     - name: Configure and Build Platform
       run: |
-        Write-Host "=== Building MacType ${{ matrix.type }} for ${{ matrix.platform }} ===" -ForegroundColor Green
+        Write-Host "=== Building ${{ matrix.platform }} ${{ matrix.type }} ===" -ForegroundColor Green
         Write-Host "Description: ${{ matrix.description }}" -ForegroundColor Cyan
         Write-Host "Build Agent: ${{ matrix.build_agent }}" -ForegroundColor Gray
+        Write-Host "Build Manager: ${{ matrix.build_manager }}" -ForegroundColor Gray
 
         if (Test-Path "build") {
           Remove-Item -Recurse -Force build
@@ -349,8 +359,8 @@ jobs:
             default { "x64-windows" }
         }
 
-        # CMake 구성 (최적화된 설정)
-        Write-Host "Configuring ${{ matrix.platform }} ($generatorPlatform)..." -ForegroundColor Cyan
+        # CMake 구성 (에이전트 + 코어만, 매니저 제외)
+        Write-Host "Configuring ${{ matrix.platform }} ($generatorPlatform) - Agent + Core only..." -ForegroundColor Cyan
 
         $cmakeArgs = @(
             "..",
@@ -360,6 +370,7 @@ jobs:
             "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
             "-DVCPKG_TARGET_TRIPLET=$vcpkgTriplet",
             "-DBUILD_MODERN_AGENT=${{ matrix.build_agent }}",
+            "-DBUILD_MODERN_MANAGER=${{ matrix.build_manager }}",
             "-DCMAKE_CXX_FLAGS=/MP /O2 /DNDEBUG",
             "-DCMAKE_EXE_LINKER_FLAGS=/OPT:REF /OPT:ICF",
             "-DCMAKE_SHARED_LINKER_FLAGS=/OPT:REF /OPT:ICF",
@@ -370,14 +381,14 @@ jobs:
 
         # 병렬 빌드 (환경 변수로 최적화)
         $parallelJobs = [math]::Min([int]$env:CMAKE_BUILD_PARALLEL_LEVEL, [int]$env:NUMBER_OF_PROCESSORS + 2)
-        Write-Host "Building ${{ matrix.type }} with $parallelJobs parallel jobs..." -ForegroundColor Cyan
+        Write-Host "Building ${{ matrix.platform }} Agent + Core with $parallelJobs parallel jobs..." -ForegroundColor Cyan
 
         $buildStart = Get-Date
         cmake --build . --config $env:BUILD_TYPE --parallel $parallelJobs --verbose
         $buildEnd = Get-Date
         $buildTime = $buildEnd - $buildStart
 
-        Write-Host "Build completed in $($buildTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
+        Write-Host "Agent + Core build completed in $($buildTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
 
     - name: Create Platform Package
       run: |
@@ -453,7 +464,7 @@ jobs:
   create-release:
     name: Create Release Packages
     runs-on: windows-latest
-    needs: [build-manager, build-platforms]
+    needs: [build-manager, build-agents]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
 
