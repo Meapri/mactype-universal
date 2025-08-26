@@ -454,19 +454,28 @@ jobs:
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-        # Use vcpkg environment from setup-environment
-        if ([string]::IsNullOrEmpty($env:VCPKG_ROOT)) {
-          Write-Host "ERROR: VCPKG_ROOT environment variable is not set" -ForegroundColor Red
-          exit 1
+        # Find and set up vcpkg environment
+        $vcpkgRoot = $env:VCPKG_ROOT
+        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+          # Try to find vcpkg in workspace
+          if (Test-Path "vcpkg/vcpkg.exe") {
+            $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+            Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
+          } else {
+            Write-Host "ERROR: VCPKG_ROOT not found" -ForegroundColor Red
+            exit 1
+          }
         }
 
-        $vcpkgExePath = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
         if (!(Test-Path $vcpkgExePath)) {
           Write-Host "ERROR: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Red
           exit 1
         }
 
-        Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Cyan
+        # Set VCPKG_ROOT for this job
+        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+        Write-Host "Using VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
         # Create build directory
         if (Test-Path "build-manager") {
@@ -613,19 +622,28 @@ jobs:
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-        # Use vcpkg environment from setup-environment
-        if ([string]::IsNullOrEmpty($env:VCPKG_ROOT)) {
-          Write-Host "ERROR: VCPKG_ROOT environment variable is not set" -ForegroundColor Red
-          exit 1
+        # Find and set up vcpkg environment
+        $vcpkgRoot = $env:VCPKG_ROOT
+        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+          # Try to find vcpkg in workspace
+          if (Test-Path "vcpkg/vcpkg.exe") {
+            $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+            Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
+          } else {
+            Write-Host "ERROR: VCPKG_ROOT not found" -ForegroundColor Red
+            exit 1
+          }
         }
 
-        $vcpkgExePath = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
         if (!(Test-Path $vcpkgExePath)) {
           Write-Host "ERROR: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Red
           exit 1
         }
 
-        Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Cyan
+        # Set VCPKG_ROOT for this job
+        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+        Write-Host "Using VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
     - name: Install platform dependencies
       run: |
