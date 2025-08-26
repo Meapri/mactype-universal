@@ -55,8 +55,10 @@ jobs:
         # 매니페스트 모드에서 vcpkg.json에 정의된 의존성들을 설치
         .\vcpkg\vcpkg.exe install --triplet $triplet
 
-        # 환경 변수 설정
+        # 환경 변수 설정 - VCPKG_ROOT 설정
         echo "VCPKG_ROOT=$PWD\vcpkg" >> $env:GITHUB_ENV
+        # VCPKG_INSTALLED_DIR도 설정
+        echo "VCPKG_INSTALLED_DIR=$PWD\vcpkg/installed" >> $env:GITHUB_ENV
 
     - name: Configure CMake
       run: |

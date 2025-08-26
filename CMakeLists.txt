@@ -90,6 +90,12 @@ if(NOT FreeType_FOUND)
     message(FATAL_ERROR "FreeType not found. Please check vcpkg installation.")
 endif()
 
+# Debug FreeType targets
+message(STATUS "FreeType found: ${FreeType_FOUND}")
+message(STATUS "FreeType version: ${FreeType_VERSION}")
+message(STATUS "FreeType libraries: ${FreeType_LIBRARIES}")
+message(STATUS "FreeType include dirs: ${FreeType_INCLUDE_DIRS}")
+
 find_package(ZLIB REQUIRED)
 find_package(PNG REQUIRED)
 find_package(BZip2 REQUIRED)
@@ -147,7 +153,11 @@ if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
 endif()
 
 if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
-    message(FATAL_ERROR "Detours library not found. Please install detours via vcpkg.")
+    message(WARNING "Detours library not found. Windows API hooking features will be disabled.")
+    message(WARNING "Install detours via: vcpkg install detours")
+    set(HAS_DETOURS FALSE)
+else()
+    set(HAS_DETOURS TRUE)
 endif()
 
 # Create interface library for detours
@@ -303,12 +313,21 @@ target_link_libraries(mactype PUBLIC
     PNG::PNG
     BZip2::BZip2
     nlohmann_json::nlohmann_json
-    detours
     # Windows system libraries (required for Windows API hooking)
     user32
     gdi32
     dwrite
     uxtheme
+)
+
+# Conditionally link detours if available
+if(HAS_DETOURS)
+    target_link_libraries(mactype PUBLIC detours)
+    target_compile_definitions(mactype PUBLIC HAS_DETOURS)
+endif()
+
+# Additional Windows libraries
+target_link_libraries(mactype PUBLIC
     windowscodecs
     shlwapi
 )
@@ -342,7 +361,7 @@ if(WIN32)
     target_link_libraries(MacTray PRIVATE mactype)
 endif()
 
-# Install targets (exclude detours from export as it's an interface library)
+# Install targets - only export mactype, not detours
 install(TARGETS mactype
     EXPORT MacTypeTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -351,7 +370,12 @@ install(TARGETS mactype
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Don't export detours as it's a local interface library
+# Install detours as separate component (not exported)
+install(TARGETS detours
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
 
 # Install headers
 install(FILES ${MAC_TYPE_HEADERS}
