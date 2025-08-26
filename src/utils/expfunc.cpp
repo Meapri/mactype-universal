@@ -11,16 +11,17 @@
 #include <dwrite_2.h>
 #include <dwrite_3.h>
 #include <locale>
-#include "wow64ext.h"
 #include <VersionHelpers.h>
 
-// win2k以降
-//#pragma comment(linker, "/subsystem:windows,5.0")
+// wow64ext는 x86 32비트에서만 사용 (ARM64에서는 불필요)
 #ifndef _WIN64
+#ifndef _M_ARM64
+#include "wow64ext.h"
 #ifdef DEBUG
 #pragma comment(lib, "wow64ext_dbg.lib")
 #else
 #pragma comment(lib, "wow64ext.lib")
+#endif
 #endif
 #endif
 

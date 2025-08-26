@@ -51,8 +51,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64]
+        platform: [x86, x64, ARM64]
         configuration: [Release, Debug]
+        exclude:
+          # ARM64는 Release만 빌드 (Debug는 너무 느림)
+          - platform: ARM64
+            configuration: Debug
 
     steps:
     - name: Checkout code
@@ -141,7 +145,7 @@ jobs:
           $sdkBinPath = switch ("${{ matrix.platform }}") {
             "x86" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x86" }
             "x64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }
-            "ARM64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }  # ARM64 크로스컴파일
+            "ARM64" { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\arm64" }  # ARM64 네이티브 컴파일
             default { "${env:ProgramFiles(x86)}\Windows Kits\10\bin\$selectedSdk\x64" }
           }
           if (Test-Path $sdkBinPath) { echo "$sdkBinPath" >> $env:GITHUB_PATH }
@@ -165,7 +169,12 @@ jobs:
     - name: Install detours and deps via vcpkg (manifest)
       run: |
         # 플랫폼별 triplet 설정
-        $triplet = if ("${{ matrix.platform }}" -eq "x64") { "x64-windows" } else { "x86-windows" }
+        $triplet = switch ("${{ matrix.platform }}") {
+            "x64" { "x64-windows" }
+            "x86" { "x86-windows" }
+            "ARM64" { "arm64-windows" }
+            default { "x64-windows" }
+        }
 
         # vcpkg는 이미 Setup vcpkg 단계에서 설치됨
 
@@ -194,7 +203,20 @@ jobs:
         }
 
         Write-Host "Using vcpkg toolchain: $vcpkgToolchain"
-        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=${{ matrix.platform == 'x64' && 'x64' || 'Win32' }} -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=${{ matrix.platform == 'x64' && 'x64-windows' || 'x86-windows' }} -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=ON
+        # 플랫폼별 CMake 설정
+        $generatorPlatform = switch ("${{ matrix.platform }}") {
+            "x64" { "x64" }
+            "x86" { "Win32" }
+            "ARM64" { "ARM64" }
+            default { "x64" }
+        }
+        $vcpkgTriplet = switch ("${{ matrix.platform }}") {
+            "x64" { "x64-windows" }
+            "x86" { "x86-windows" }
+            "ARM64" { "arm64-windows" }
+            default { "x64-windows" }
+        }
+        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=ON
 
     - name: Build with CMake
       run: |

@@ -152,8 +152,10 @@ if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
         PATHS
             "${VCPKG_ROOT}/x64-windows/include"
             "${VCPKG_ROOT}/x86-windows/include"
+            "${VCPKG_ROOT}/arm64-windows/include"
             "$ENV{VCPKG_ROOT}/installed/x64-windows/include"
             "$ENV{VCPKG_ROOT}/installed/x86-windows/include"
+            "$ENV{VCPKG_ROOT}/installed/arm64-windows/include"
         NO_DEFAULT_PATH
     )
     find_library(DETOURS_LIBRARY
@@ -161,8 +163,10 @@ if(NOT DETOURS_INCLUDE_DIR OR NOT DETOURS_LIBRARY)
         PATHS
             "${VCPKG_ROOT}/x64-windows/lib"
             "${VCPKG_ROOT}/x86-windows/lib"
+            "${VCPKG_ROOT}/arm64-windows/lib"
             "$ENV{VCPKG_ROOT}/installed/x64-windows/lib"
             "$ENV{VCPKG_ROOT}/installed/x86-windows/lib"
+            "$ENV{VCPKG_ROOT}/installed/arm64-windows/lib"
         NO_DEFAULT_PATH
     )
 endif()
@@ -370,6 +374,15 @@ if(WIN32)
     # Main DLL - MacType.Core as DLL (traditional architecture)
     add_library(MacType.Core SHARED src/platform/dll.cpp src/platform/resource)
     target_link_libraries(MacType.Core PRIVATE mactype)
+
+    # 아키텍처별 DLL 이름 설정
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" OR CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
+        set_target_properties(MacType.Core PROPERTIES OUTPUT_NAME "MacType64")
+    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64" OR CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
+        set_target_properties(MacType.Core PROPERTIES OUTPUT_NAME "MacType_ARM64")
+    else()
+        set_target_properties(MacType.Core PROPERTIES OUTPUT_NAME "MacType")
+    endif()
 
     # GUI applications
     add_executable(MacTuner WIN32 src/platform/macloader.rc)

@@ -30,8 +30,11 @@
 #include <psapi.h>
 #endif
 
+// wow64ext는 x86 32비트에서만 사용 (ARM64에서는 불필요)
 #ifndef _WIN64
+#ifndef _M_ARM64
 #include "wow64ext.h"
+#endif
 #endif
 
 #ifdef INFINALITY
