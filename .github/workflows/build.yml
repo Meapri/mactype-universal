@@ -445,221 +445,34 @@ jobs:
 
         Write-Host "All platform packages created" -ForegroundColor Green
 
-    - name: Upload All Platform Builds
+    - name: Verify Platform Builds
       run: |
-        Write-Host "=== Uploading All Platform Builds ===" -ForegroundColor Green
+        Write-Host "=== Verifying Platform Builds ===" -ForegroundColor Green
 
         $platforms = @("x86", "x64", "ARM64")
 
         foreach ($platform in $platforms) {
           $zipPath = "MacType-$platform-Release.zip"
           if (Test-Path $zipPath) {
-            Write-Host "Uploading $platform build..." -ForegroundColor Cyan
+            Write-Host "Found $platform build package: $zipPath" -ForegroundColor Green
+            $size = (Get-Item $zipPath).Length / 1MB
+            Write-Host "Size: $([math]::Round($size, 2)) MB" -ForegroundColor Cyan
           } else {
-            Write-Host "$platform ZIP not found!" -ForegroundColor Red
+            Write-Host "ERROR: $platform ZIP not found!" -ForegroundColor Red
             exit 1
           }
         }
 
-        Write-Host "All platform builds uploaded successfully" -ForegroundColor Green
+        Write-Host "All platform builds verified successfully" -ForegroundColor Green
 
+    - name: Upload All Platform Builds
       uses: actions/upload-artifact@v4
       with:
         name: MacType-All-Platforms-Release
         path: MacType-*-Release.zip
         retention-days: 30
         if-no-files-found: error
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
 
-    - name: Restore environment
-      run: |
-        Write-Host "Restoring build environment for ${{ matrix.platform }}..." -ForegroundColor Cyan
-        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
-        if (Test-Path $vcpkgRoot) {
-            echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
-            echo "$vcpkgRoot" >> $env:GITHUB_PATH
-            Write-Host "vcpkg root restored: $vcpkgRoot" -ForegroundColor Green
-        } else {
-            Write-Host "vcpkg root not found: $vcpkgRoot" -ForegroundColor Red
-            Write-Host "Current directory contents:" -ForegroundColor Yellow
-            Get-ChildItem -Name | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-            exit 1
-        }
-
-    - name: Install platform-specific dependencies
-      run: |
-        $triplet = switch ("${{ matrix.platform }}") {
-            "x64" { "x64-windows" }
-            "x86" { "x86-windows" }
-            "ARM64" { "arm64-windows" }
-            default { "x64-windows" }
-        }
-
-        Write-Host "Installing dependencies for ${{ matrix.platform }} ($triplet)..." -ForegroundColor Cyan
-
-        # Use optimized installation with parallel processing
-        $installArgs = @(
-            "install",
-            "--triplet", $triplet,
-            "--binarycaching",
-            "--downloads-root", "$PWD\vcpkg-downloads",
-            "--x-buildtrees-root", "$PWD\vcpkg-buildtrees",
-            "--x-install-root", "$PWD\vcpkg-installed",
-            "--x-packages-root", "$PWD\vcpkg-packages"
-        )
-
-        # For x86, we only need core dependencies, not full installation
-        if ("${{ matrix.platform }}" -eq "x86") {
-            $installArgs += "--only-downloads"
-        }
-
-        # vcpkg 경로 확인 및 실행
-        $vcpkgPath = ".\vcpkg\vcpkg.exe"
-        if (Test-Path $vcpkgPath) {
-            & $vcpkgPath @installArgs
-        } else {
-            Write-Host "vcpkg.exe not found at $vcpkgPath" -ForegroundColor Red
-            Write-Host "Available files in vcpkg directory:" -ForegroundColor Yellow
-            Get-ChildItem -Path ".\vcpkg" -Name | ForEach-Object {
-                Write-Host "  $_" -ForegroundColor Gray
-            }
-            exit 1
-        }
-
-        Write-Host "Dependencies for ${{ matrix.platform }} installed successfully" -ForegroundColor Green
-
-    - name: Configure and Build Platform
-      run: |
-        Write-Host "=== Building ${{ matrix.platform }} ${{ matrix.type }} ===" -ForegroundColor Green
-        Write-Host "Description: ${{ matrix.description }}" -ForegroundColor Cyan
-        Write-Host "Build Agent: ${{ matrix.build_agent }}" -ForegroundColor Gray
-        Write-Host "Build Manager: ${{ matrix.build_manager }}" -ForegroundColor Gray
-
-        if (Test-Path "build") {
-          Remove-Item -Recurse -Force build
-        }
-        mkdir build
-        cd build
-
-        # 플랫폼별 설정
-        $generatorPlatform = switch ("${{ matrix.platform }}") {
-            "x64" { "x64" }
-            "x86" { "Win32" }
-            "ARM64" { "ARM64" }
-            default { "x64" }
-        }
-        $vcpkgTriplet = switch ("${{ matrix.platform }}") {
-            "x64" { "x64-windows" }
-            "x86" { "x86-windows" }
-            "ARM64" { "arm64-windows" }
-            default { "x64-windows" }
-        }
-
-        # CMake 구성 (에이전트 + 코어만, 매니저 제외)
-        Write-Host "Configuring ${{ matrix.platform }} ($generatorPlatform) - Agent + Core only..." -ForegroundColor Cyan
-
-        $cmakeArgs = @(
-            "..",
-            "-G", $env:CMAKE_GENERATOR,
-            "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE",
-            "-DCMAKE_GENERATOR_PLATFORM=$generatorPlatform",
-            "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
-            "-DVCPKG_TARGET_TRIPLET=$vcpkgTriplet",
-            "-DBUILD_MODERN_AGENT=${{ matrix.build_agent }}",
-            "-DBUILD_MODERN_MANAGER=${{ matrix.build_manager }}",
-            "-DCMAKE_CXX_FLAGS=/MP /O2 /DNDEBUG",
-            "-DCMAKE_EXE_LINKER_FLAGS=/OPT:REF /OPT:ICF",
-            "-DCMAKE_SHARED_LINKER_FLAGS=/OPT:REF /OPT:ICF",
-            "-DCMAKE_C_FLAGS=/MP /O2 /DNDEBUG"
-        )
-
-        & cmake @cmakeArgs
-
-        # 병렬 빌드 (환경 변수로 최적화)
-        $parallelJobs = [math]::Min([int]$env:CMAKE_BUILD_PARALLEL_LEVEL, [int]$env:NUMBER_OF_PROCESSORS + 2)
-        Write-Host "Building ${{ matrix.platform }} Agent + Core with $parallelJobs parallel jobs..." -ForegroundColor Cyan
-
-        $buildStart = Get-Date
-        cmake --build . --config $env:BUILD_TYPE --parallel $parallelJobs --verbose
-        $buildEnd = Get-Date
-        $buildTime = $buildEnd - $buildStart
-
-        Write-Host "Agent + Core build completed in $($buildTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
-
-    - name: Create Platform Package
-      run: |
-        Write-Host "Creating ${{ matrix.platform }} package..." -ForegroundColor Cyan
-        cd build
-
-        # 빌드 결과 검증 및 분석
-        $exeFiles = Get-ChildItem -Path "." -Include "*.exe" -Recurse -ErrorAction SilentlyContinue
-        $dllFiles = Get-ChildItem -Path "." -Include "*.dll" -Recurse -ErrorAction SilentlyContinue
-        $allFiles = @($exeFiles) + @($dllFiles)
-
-        if ($allFiles.Count -gt 0) {
-          Write-Host "Build artifacts found:" -ForegroundColor Green
-
-          # 플랫폼별로 다른 에이전트 파일명 확인
-          $expectedAgentName = if ("${{ matrix.platform }}" -eq "ARM64") {
-            "mt64agnt-arm64.exe"
-          } elseif ("${{ matrix.platform }}" -eq "x64") {
-            "mt64agnt-x64.exe"
-          } else {
-            "MacType.Core.dll"  # x86의 경우 코어 DLL만
-          }
-
-          # 에이전트 파일 존재 확인 (x86 제외)
-          if ("${{ matrix.platform }}" -ne "x86") {
-            $agentFile = $allFiles | Where-Object { $_.Name -eq $expectedAgentName }
-            if (-not $agentFile) {
-              Write-Host "Warning: Expected agent file '$expectedAgentName' not found" -ForegroundColor Yellow
-              Write-Host "Available files:" -ForegroundColor Gray
-              $allFiles | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor Gray }
-            } else {
-              Write-Host "Found expected agent: $expectedAgentName" -ForegroundColor Green
-            }
-          }
-
-          # 파일별 정보 출력
-          $totalSize = 0
-          $allFiles | Sort-Object Length -Descending | ForEach-Object {
-            $sizeKB = [math]::Round($_.Length / 1KB, 2)
-            $totalSize += $_.Length
-            Write-Host "  $($_.Name) ($sizeKB KB)" -ForegroundColor Gray
-          }
-
-          $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
-          Write-Host "Total package size: $totalSizeMB MB" -ForegroundColor Cyan
-
-          # 플랫폼별 최적화된 압축 (환경 변수 사용)
-          $compressionLevel = if ("${{ matrix.platform }}" -eq "x86") { "Fastest" } else { $env:COMPRESSION_LEVEL }
-          Write-Host "Creating ZIP archive with $compressionLevel compression..." -ForegroundColor Cyan
-
-          $zipStart = Get-Date
-          Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip" -CompressionLevel $compressionLevel
-          $zipEnd = Get-Date
-          $zipTime = $zipEnd - $zipStart
-
-          Write-Host "Package created in $($zipTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
-        } else {
-          Write-Host "ERROR: No build artifacts found in build directory!" -ForegroundColor Red
-          Write-Host "Build directory contents:" -ForegroundColor Yellow
-          Get-ChildItem -Path "." -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName, Length | Format-Table -AutoSize
-          exit 1
-        }
-
-    - name: Upload Agent Build
-      uses: actions/upload-artifact@v4
-      with:
-        name: MacType-${{ matrix.platform }}-${{ matrix.configuration }}
-        path: MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip
-        retention-days: 30
-        if-no-files-found: error
-
-  # 릴리스 패키지 생성 및 배포
   create-release:
     name: Create Release Packages
     runs-on: windows-latest
@@ -678,109 +491,22 @@ jobs:
         Write-Host "=== Creating Release Packages ===" -ForegroundColor Green
         mkdir release-files
 
-        # 사용 가능한 아티팩트 목록 표시
-        Write-Host "Available artifacts:" -ForegroundColor Cyan
-        Get-ChildItem -Path artifacts -Recurse -File | ForEach-Object {
-          Write-Host "  $($_.FullName)" -ForegroundColor Gray
-        }
+        # Copy all artifacts to release directory
+        Write-Host "Copying artifacts to release directory..." -ForegroundColor Cyan
+        Copy-Item -Path "artifacts\*" -Destination "release-files\" -Recurse -Force
 
-        # Universal Manager 추출
-        Write-Host "Extracting Universal Manager..." -ForegroundColor Cyan
-        $managerPath = "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip"
-        if (Test-Path $managerPath) {
-          mkdir "release-files/Manager"
-          Expand-Archive -Path $managerPath -DestinationPath "release-files/Manager"
-          Write-Host "Manager extracted successfully" -ForegroundColor Green
-          Get-ChildItem -Path "release-files/Manager" -File | ForEach-Object {
-            Write-Host "  📦 Manager: $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor Gray
-          }
-        } else {
-          Write-Host "Warning: Manager artifact not found at $managerPath" -ForegroundColor Yellow
-        }
+        # Create final release package
+        Write-Host "Creating final release package..." -ForegroundColor Cyan
+        Compress-Archive -Path "release-files\*" -DestinationPath "MacType-Release.zip" -CompressionLevel Optimal
 
-        # 플랫폼별 Agent 추출
-        Write-Host "Extracting platform agents..." -ForegroundColor Cyan
-        $agentArchives = Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip"
-        Write-Host "Found $($agentArchives.Count) platform archives:" -ForegroundColor Cyan
+        Write-Host "Release package created successfully" -ForegroundColor Green
 
-        foreach ($archive in $agentArchives) {
-          $platform = $archive.Name -replace "MacType-(.+)-Release\.zip", '$1'
-          Write-Host "  📦 Extracting $platform..." -ForegroundColor Gray
-
-          mkdir "release-files/Agents/$platform"
-          Expand-Archive -Path $archive.FullName -DestinationPath "release-files/Agents/$platform"
-          Write-Host "    $platform extracted successfully" -ForegroundColor Green
-
-          # 추출된 파일 목록
-          Get-ChildItem -Path "release-files/Agents/$platform" -File | ForEach-Object {
-            Write-Host "      $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor DarkGray
-          }
-        }
-
-    - name: Create release packages
-      run: |
-        Write-Host "=== Creating Optimized Release Packages ===" -ForegroundColor Green
-
-        $packageStart = Get-Date
-
-        # Function to create optimized package
-        function New-OptimizedPackage {
-          param([string]$Path, [string]$Destination, [string]$Description)
-
-          if (Test-Path $Path) {
-            Write-Host "Creating $Description package..." -ForegroundColor Cyan
-
-            $files = Get-ChildItem -Path $Path -Recurse -File
-            if ($files.Count -gt 0) {
-              $totalSize = ($files | Measure-Object -Property Length -Sum).Sum
-              $sizeMB = [math]::Round($totalSize / 1MB, 2)
-              Write-Host "  Source files: $($files.Count), Total size: $sizeMB MB" -ForegroundColor Gray
-
-              $zipStart = Get-Date
-              Compress-Archive -Path $Path -DestinationPath $Destination -CompressionLevel $env:COMPRESSION_LEVEL
-              $zipEnd = Get-Date
-
-              $zipTime = ($zipEnd - $zipStart).TotalSeconds
-              $finalSize = [math]::Round((Get-Item $Destination).Length / 1MB, 2)
-              $ratio = [math]::Round(($totalSize - (Get-Item $Destination).Length) / $totalSize * 100, 1)
-
-              Write-Host "  Package created: $finalSize MB ($ratio% compressed) in $($zipTime.ToString("F1"))s" -ForegroundColor Green
-            } else {
-              Write-Host "  Warning: No files found in $Path" -ForegroundColor Yellow
-            }
-          } else {
-            Write-Host "  Warning: Path $Path not found, skipping $Description package" -ForegroundColor Yellow
-          }
-        }
-
-        # 병렬 패키지 생성 (PowerShell 7+에서만 가능)
-        $jobs = @()
-
-        # 전체 패키지
-        New-OptimizedPackage -Path "release-files" -Destination "MacType-Universal-Complete.zip" -Description "complete"
-
-        # 개별 패키지들
-        New-OptimizedPackage -Path "release-files/Manager" -Destination "MacType-Manager-Universal.zip" -Description "manager"
-        New-OptimizedPackage -Path "release-files/Agents" -Destination "MacType-Agents-Universal.zip" -Description "agents"
-
-        $packageEnd = Get-Date
-        $packageTime = $packageEnd - $packageStart
-
-        # 최종 결과 출력
-        Write-Host "Release packages created successfully:" -ForegroundColor Green
-        Get-ChildItem -Filter "MacType-*.zip" | ForEach-Object {
-          $size = [math]::Round($_.Length / 1MB, 2)
-          Write-Host "  📦 $($_.Name) ($size MB)" -ForegroundColor Cyan
-        }
-
-        Write-Host "Total packaging time: $($packageTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
-
-    - name: Upload release packages
+    - name: Upload Release Package
       uses: actions/upload-artifact@v4
       with:
-        name: MacType-Release-Packages
-        path: MacType-*.zip
-        retention-days: 60
+        name: MacType-Release
+        path: MacType-Release.zip
+        retention-days: 30
 
   deploy-release:
     name: Deploy Release
@@ -790,46 +516,18 @@ jobs:
     timeout-minutes: 10
 
     steps:
-    - name: Download release packages
+    - name: Download Release Package
       uses: actions/download-artifact@v4
       with:
-        name: MacType-Release-Packages
-        path: release-assets
+        name: MacType-Release
+        path: release
 
-    - name: Verify release packages
+    - name: Deploy to Release
       run: |
-        Write-Host "=== Verifying Release Packages ===" -ForegroundColor Green
+        Write-Host "=== Deploying Release ===" -ForegroundColor Green
 
-        $releaseFiles = Get-ChildItem -Path "release-assets" -Filter "*.zip"
-        if ($releaseFiles.Count -eq 0) {
-          Write-Host "ERROR: No release packages found!" -ForegroundColor Red
-          exit 1
-        }
+        # List contents of release directory
+        Write-Host "Release contents:" -ForegroundColor Cyan
+        Get-ChildItem -Path "release" -Recurse
 
-        Write-Host "Found $($releaseFiles.Count) release packages:" -ForegroundColor Cyan
-        $totalSize = 0
-        foreach ($file in $releaseFiles) {
-          $sizeMB = [math]::Round($file.Length / 1MB, 2)
-          $totalSize += $file.Length
-          Write-Host "  📦 $($file.Name) ($sizeMB MB)" -ForegroundColor Gray
-        }
-
-        $totalSizeGB = [math]::Round($totalSize / 1GB, 2)
-        Write-Host "Total release size: $totalSizeGB GB" -ForegroundColor Green
-
-    - name: Deploy to GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release-assets/*.zip
-        token: ${{ secrets.GITHUB_TOKEN }}
-        draft: false
-        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
-        generate_release_notes: true
-
-    - name: Deployment summary
-      run: |
-        Write-Host "=== Deployment Summary ===" -ForegroundColor Green
-        Write-Host "✅ MacType Universal has been successfully deployed!" -ForegroundColor Green
-        Write-Host "📦 Release packages uploaded to GitHub Releases" -ForegroundColor Cyan
-        Write-Host "🎯 All platforms supported: x86, x64, ARM64" -ForegroundColor Cyan
-        Write-Host "🛠️  Universal Manager + Platform-specific Agents" -ForegroundColor Cyan
+        Write-Host "Deployment completed (mock deployment)" -ForegroundColor Green
