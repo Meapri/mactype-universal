@@ -113,6 +113,9 @@ jobs:
     name: Setup Build Environment
     runs-on: windows-latest
     timeout-minutes: 25
+    outputs:
+      vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
+      setup-status: ${{ steps.final-verification.outputs.status }}
 
     steps:
     - name: Checkout code
@@ -367,6 +370,9 @@ jobs:
         cd ..
         Write-Host "vcpkg setup complete" -ForegroundColor Green
 
+        # Output vcpkg root for dependent jobs
+        echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
+
     - name: Pre-install common dependencies
       if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
@@ -438,8 +444,29 @@ jobs:
         Write-Host "Environment setup completed successfully!" -ForegroundColor Green
         Write-Host "Final VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
+    - name: Final Environment Verification
+      id: final-verification
+      run: |
+        Write-Host "=== Final Environment Verification ===" -ForegroundColor Green
+
+        # Get vcpkg root from setup-vcpkg step
+        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
+        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+          $vcpkgRoot = $env:VCPKG_ROOT
+        }
+
+        if (!(Test-Path "$vcpkgRoot/vcpkg.exe")) {
+          Write-Host "ERROR: vcpkg.exe not found at expected location" -ForegroundColor Red
+          echo "status=failed" >> $env:GITHUB_OUTPUT
+          exit 1
+        }
+
+        Write-Host "All environment setup completed successfully" -ForegroundColor Green
+        echo "status=success" >> $env:GITHUB_OUTPUT
+
   # Universal Manager 빌드 (x64 + ARM64 지원)
   build-manager:
+    if: needs.setup-environment.outputs.setup-status == 'success'
     name: Build Universal MacType Manager
     runs-on: windows-latest
     needs: setup-environment
@@ -470,17 +497,19 @@ jobs:
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-        # Find and set up vcpkg environment
-        $vcpkgRoot = $env:VCPKG_ROOT
+        # Get vcpkg root from setup-environment job
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
         if ([string]::IsNullOrEmpty($vcpkgRoot)) {
-          # Try to find vcpkg in workspace
+          # Fallback: find vcpkg in workspace
           if (Test-Path "vcpkg/vcpkg.exe") {
             $vcpkgRoot = (Get-Location).Path + "\vcpkg"
             Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
           } else {
-            Write-Host "ERROR: VCPKG_ROOT not found" -ForegroundColor Red
+            Write-Host "ERROR: VCPKG_ROOT not found from setup-environment" -ForegroundColor Red
             exit 1
           }
+        } else {
+          Write-Host "Using vcpkg from setup-environment: $vcpkgRoot" -ForegroundColor Cyan
         }
 
         $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
@@ -618,6 +647,7 @@ jobs:
 
   # 플랫폼별 에이전트 + 코어 빌드 (x64 호스트에서 크로스 컴파일)
   build-agents:
+    if: needs.setup-environment.outputs.setup-status == 'success'
     name: Build All Platforms (x64 Host)
     runs-on: windows-latest
     needs: setup-environment
@@ -636,17 +666,19 @@ jobs:
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-        # Find and set up vcpkg environment
-        $vcpkgRoot = $env:VCPKG_ROOT
+        # Get vcpkg root from setup-environment job
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
         if ([string]::IsNullOrEmpty($vcpkgRoot)) {
-          # Try to find vcpkg in workspace
+          # Fallback: find vcpkg in workspace
           if (Test-Path "vcpkg/vcpkg.exe") {
             $vcpkgRoot = (Get-Location).Path + "\vcpkg"
             Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
           } else {
-            Write-Host "ERROR: VCPKG_ROOT not found" -ForegroundColor Red
+            Write-Host "ERROR: VCPKG_ROOT not found from setup-environment" -ForegroundColor Red
             exit 1
           }
+        } else {
+          Write-Host "Using vcpkg from setup-environment: $vcpkgRoot" -ForegroundColor Cyan
         }
 
         $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
