@@ -16,7 +16,13 @@ project(MacTypeManager
 set(CMAKE_SYSTEM_VERSION 10.0.19041.0)
 
 # Find Windows App SDK
-find_package(Microsoft.WindowsAppSDK CONFIG REQUIRED)
+find_package(Microsoft.WindowsAppSDK CONFIG QUIET)
+
+if (NOT Microsoft.WindowsAppSDK_FOUND)
+    message(WARNING "Microsoft.WindowsAppSDK not found. Building without Windows App SDK support.")
+    # Windows App SDK 없이 빌드할 수 있도록 설정
+    add_compile_definitions(WITHOUT_WINDOWS_APP_SDK)
+endif()
 
 # Source files
 set(SOURCES

@@ -161,12 +161,12 @@ jobs:
           exit 0
         }
 
-        # 여러 버전의 Windows App SDK 시도
+        # 여러 버전의 Windows App SDK 시도 (안정적인 버전 우선)
         $sdkVersions = @(
           "1.4.231008000",
-          "1.4.231008003",
-          "1.4.231008004",
-          "1.4.231008005"
+          "1.3.230724000",
+          "1.2.230313000",
+          "1.1.230628000"
         )
 
         $installationSuccess = $false
@@ -212,6 +212,10 @@ jobs:
         if (-not $installationSuccess) {
           Write-Host "All Windows App SDK installation attempts failed, but continuing build..." -ForegroundColor Yellow
           Write-Host "Note: Universal Windows Platform features may not be available" -ForegroundColor Gray
+          # Windows App SDK가 설치되지 않았음을 환경변수로 기록
+          echo "WINDOWS_APP_SDK_INSTALLED=false" >> $env:GITHUB_ENV
+        } else {
+          echo "WINDOWS_APP_SDK_INSTALLED=true" >> $env:GITHUB_ENV
         }
 
     - name: Verify Windows Development Environment
@@ -450,6 +454,18 @@ jobs:
       with:
         fetch-depth: 1
 
+    - name: Check Windows App SDK
+      run: |
+        Write-Host "=== Checking Windows App SDK Installation ===" -ForegroundColor Green
+
+        if ($env:WINDOWS_APP_SDK_INSTALLED -eq "false") {
+          Write-Host "Windows App SDK is not installed. Skipping Universal Manager build." -ForegroundColor Yellow
+          echo "SKIP_MANAGER_BUILD=true" >> $env:GITHUB_ENV
+          exit 0
+        }
+
+        Write-Host "Windows App SDK is available. Proceeding with Universal Manager build." -ForegroundColor Green
+
     - name: Setup build environment
       run: |
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
@@ -512,8 +528,6 @@ jobs:
             "-DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain",
             "-DVCPKG_TARGET_TRIPLET=x64-windows",
             "-DBUILD_MODERN_MANAGER=ON",
-            "-DCMAKE_SYSTEM_NAME=WindowsStore",
-            "-DCMAKE_SYSTEM_VERSION=10.0",
             "-DCMAKE_CXX_FLAGS=/MP /O2 /DNDEBUG",
             "-DCMAKE_C_FLAGS=/MP /O2 /DNDEBUG"
         )
