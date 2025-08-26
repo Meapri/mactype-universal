@@ -1,4 +1,4 @@
-name: Build MacType
+name: Build MacType Universal
 
 on:
   push:
@@ -8,27 +8,103 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: false
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 env:
-  VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
-  BUILD_TYPE: Release
+  # Build Configuration
+  BUILD_TYPE: ${{ inputs.build_type || 'Release' }}
   COMPRESSION_LEVEL: Optimal
   CMAKE_GENERATOR: Ninja
   CMAKE_BUILD_PARALLEL_LEVEL: 16
 
+  # vcpkg Configuration
+  VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
+  VCPKG_DEFAULT_TRIPLET: 'x64-windows'
+
+  # Windows SDK Configuration
+  WINDOWS_SDK_VERSION: '10.0.26100.0'
+  WINDOWS_APP_SDK_VERSION: '1.4.231008000'
+
+  # Performance Configuration
+  NINJA_MAX_JOBS: 16
+  MSBUILD_MAX_CPU_COUNT: 16
+
+  # Paths
+  BUILD_CACHE_DIR: '${{ github.workspace }}/build-cache'
+  VCPKG_CACHE_DIR: '${{ github.workspace }}/vcpkg-cache'
+  ARTIFACT_CACHE_DIR: '${{ github.workspace }}/artifacts'
+
 jobs:
+  # 환경 검증 및 사전 준비
+  validate-environment:
+    name: Validate Environment
+    runs-on: windows-latest
+    timeout-minutes: 5
+    outputs:
+      runner-info: ${{ steps.runner-info.outputs.info }}
+      windows-version: ${{ steps.runner-info.outputs.windows-version }}
+
+    steps:
+    - name: Gather runner information
+      id: runner-info
+      run: |
+        Write-Host "=== Windows Runner Information ===" -ForegroundColor Green
+
+        $osInfo = Get-ComputerInfo
+        $windowsVersion = "$($osInfo.WindowsProductName) $($osInfo.WindowsVersion)"
+        Write-Host "Windows Version: $windowsVersion" -ForegroundColor Cyan
+
+        $cpuInfo = Get-WmiObject Win32_Processor
+        Write-Host "CPU: $($cpuInfo.Name)" -ForegroundColor Cyan
+        Write-Host "Cores: $($cpuInfo.NumberOfCores)" -ForegroundColor Cyan
+        Write-Host "Logical Processors: $($cpuInfo.NumberOfLogicalProcessors)" -ForegroundColor Cyan
+
+        $memory = Get-WmiObject Win32_ComputerSystem
+        $memoryGB = [math]::Round($memory.TotalPhysicalMemory / 1GB, 1)
+        Write-Host "Memory: $memoryGB GB" -ForegroundColor Cyan
+
+        $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
+        $diskGB = [math]::Round($disk.Size / 1GB, 1)
+        Write-Host "Disk Space: $diskGB GB" -ForegroundColor Cyan
+
+        $info = @{
+          windows_version = $windowsVersion
+          cpu_name = $cpuInfo.Name
+          cpu_cores = $cpuInfo.NumberOfCores
+          memory_gb = $memoryGB
+          disk_gb = $diskGB
+        } | ConvertTo-Json
+
+        echo "info=$info" >> $env:GITHUB_OUTPUT
+        echo "windows-version=$windowsVersion" >> $env:GITHUB_OUTPUT
+
   # 공통 환경 설정 및 의존성 설치
   setup-environment:
-    name: Setup Environment
+    name: Setup Build Environment
     runs-on: windows-latest
-    timeout-minutes: 20
+    needs: validate-environment
+    timeout-minutes: 25
     outputs:
       vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
-      setup-time: ${{ steps.setup-complete.outputs.setup-time }}
+      cmake-version: ${{ steps.setup-cmake.outputs.cmake-version }}
+      setup-duration: ${{ steps.setup-complete.outputs.duration }}
 
     steps:
     - name: Checkout code
@@ -37,135 +113,167 @@ jobs:
         fetch-depth: 1
 
     - name: Setup CMake
+      id: setup-cmake
       uses: lukka/get-cmake@latest
 
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
-    - name: Setup Windows Development Environment
+    - name: Cache Windows SDK
+      id: cache-windows-sdk
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\Program Files (x86)\Windows Kits\10\bin\${{ env.WINDOWS_SDK_VERSION }}\*
+          C:\Program Files (x86)\Microsoft SDKs\Windows Kits\10\bin\${{ env.WINDOWS_SDK_VERSION }}\*
+        key: windows-sdk-${{ env.WINDOWS_SDK_VERSION }}
+        restore-keys: |
+          windows-sdk-
+
+    - name: Setup Windows App SDK
+      if: steps.cache-windows-sdk.outputs.cache-hit != 'true'
       run: |
-        Write-Host "=== Setting up Windows Development Environment ===" -ForegroundColor Green
+        Write-Host "=== Setting up Windows App SDK ===" -ForegroundColor Green
 
-        # Function to check and install Windows App SDK
-        function Install-WindowsAppSDK {
-          param([string]$SdkUrl)
+        $sdkUrl = "https://aka.ms/windowsappsdk/${{ env.WINDOWS_APP_SDK_VERSION }}/windowsappruntimeinstall-x64.exe"
+        $installerPath = "$env:TEMP\WindowsAppRuntimeInstall.exe"
 
-          $installerPath = "$env:TEMP\WindowsAppRuntimeInstall.exe"
+        try {
+          Write-Host "Downloading Windows App Runtime..." -ForegroundColor Cyan
+          Invoke-WebRequest -Uri $sdkUrl -OutFile $installerPath -UseBasicParsing -TimeoutSec 300
 
-          try {
-            Write-Host "Downloading Windows App Runtime..." -ForegroundColor Cyan
-            Invoke-WebRequest -Uri $SdkUrl -OutFile $installerPath -UseBasicParsing -TimeoutSec 300
+          Write-Host "Installing Windows App Runtime..." -ForegroundColor Cyan
+          $installProcess = Start-Process -FilePath $installerPath -ArgumentList "/silent", "/norestart" -Wait -NoNewWindow -PassThru
 
-            Write-Host "Installing Windows App Runtime..." -ForegroundColor Cyan
-            $installProcess = Start-Process -FilePath $installerPath -ArgumentList "/silent", "/norestart" -Wait -NoNewWindow -PassThru
-
-            if ($installProcess.ExitCode -eq 0) {
-              Write-Host "Windows App SDK installed successfully" -ForegroundColor Green
-              return $true
-            } else {
-              Write-Host "Windows App SDK installation failed with exit code: $($installProcess.ExitCode)" -ForegroundColor Red
-              return $false
-            }
+          if ($installProcess.ExitCode -eq 0) {
+            Write-Host "Windows App SDK installed successfully" -ForegroundColor Green
+          } else {
+            Write-Host "Windows App SDK installation failed with exit code: $($installProcess.ExitCode)" -ForegroundColor Red
+            exit 1
           }
-          catch {
-            Write-Host "Windows App SDK installation error: $($_.Exception.Message)" -ForegroundColor Red
-            return $false
-          }
-          finally {
-            if (Test-Path $installerPath) {
-              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
-            }
+        }
+        catch {
+          Write-Host "Windows App SDK installation error: $($_.Exception.Message)" -ForegroundColor Red
+          exit 1
+        }
+        finally {
+          if (Test-Path $installerPath) {
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
           }
         }
 
-        # Check Windows SDK and install Windows App SDK if needed
-        $sdkFound = $false
+    - name: Verify Windows Development Environment
+      run: |
+        Write-Host "=== Verifying Windows Development Environment ===" -ForegroundColor Green
+
+        # Check Windows SDK versions
         $sdkPaths = @(
-          "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
-          "${env:ProgramFiles}\Microsoft SDKs\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
-          "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe"
+          "${env:ProgramFiles(x86)}\Windows Kits\10\Include\",
+          "C:\Program Files (x86)\Windows Kits\10\Include\"
         )
 
-        foreach ($path in $sdkPaths) {
-          if (Test-Path $path) {
-            Write-Host "Windows SDK found: $path" -ForegroundColor Green
-            $sdkFound = $true
-            break
+        $foundSdk = $false
+        foreach ($sdkPath in $sdkPaths) {
+          if (Test-Path $sdkPath) {
+            $sdkVersions = Get-ChildItem $sdkPath -Directory -ErrorAction SilentlyContinue
+            if ($sdkVersions) {
+              $latestSdk = $sdkVersions | Sort-Object Name -Descending | Select-Object -First 1
+              Write-Host "Windows SDK found: $($latestSdk.Name)" -ForegroundColor Green
+              $foundSdk = $true
+              break
+            }
           }
         }
 
-        if (-not $sdkFound) {
-          Write-Host "Windows SDK not found, installing Windows App Runtime..." -ForegroundColor Yellow
-          $sdkUrl = "https://aka.ms/windowsappsdk/1.4/latest/windowsappruntimeinstall-x64.exe"
-          $installSuccess = Install-WindowsAppSDK -SdkUrl $sdkUrl
+        if (-not $foundSdk) {
+          Write-Host "Windows SDK not found" -ForegroundColor Yellow
+        }
 
-          if (-not $installSuccess) {
-            Write-Host "Warning: Windows App SDK installation failed, but continuing build..." -ForegroundColor Yellow
+        # Check MSVC
+        $msvcPath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\"
+        if (Test-Path $msvcPath) {
+          $msvcVersions = Get-ChildItem $msvcPath -Directory -ErrorAction SilentlyContinue
+          if ($msvcVersions) {
+            $latestMsvc = $msvcVersions | Sort-Object Name -Descending | Select-Object -First 1
+            Write-Host "MSVC found: $($latestMsvc.Name)" -ForegroundColor Green
           }
-        } else {
-          Write-Host "Windows development environment is ready" -ForegroundColor Green
         }
 
-    - name: Verify Windows Environment
-      run: |
-        Write-Host "=== Windows Environment Verification ===" -ForegroundColor Green
-        Write-Host "Available CPU cores: $env:NUMBER_OF_PROCESSORS" -ForegroundColor Cyan
+        Write-Host "Windows development environment verification complete" -ForegroundColor Green
 
-        # Windows SDK 버전 확인
-        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue
-        if ($sdkVersions) {
-          $latestSdk = $sdkVersions | Sort-Object Name -Descending | Select-Object -First 1
-          Write-Host "Windows SDK: $($latestSdk.Name)" -ForegroundColor Green
-        } else {
-          Write-Host "Windows SDK: Not found" -ForegroundColor Yellow
-        }
-
-    - name: Cache vcpkg
+    - name: Cache vcpkg installation
+      id: cache-vcpkg
       uses: actions/cache@v4
       with:
         path: |
           vcpkg
-          vcpkg/installed
-        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          ${{ env.VCPKG_CACHE_DIR }}
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}-v2
         restore-keys: |
+          vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-
           vcpkg-${{ runner.os }}-
-          vcpkg-
 
     - name: Setup vcpkg
       id: setup-vcpkg
       run: |
+        Write-Host "=== Setting up vcpkg ===" -ForegroundColor Green
+
         if (!(Test-Path "vcpkg")) {
-          Write-Host "Cloning vcpkg..." -ForegroundColor Cyan
-          git clone https://github.com/Microsoft/vcpkg.git --depth 1
+          Write-Host "Cloning vcpkg repository..." -ForegroundColor Cyan
+          git clone https://github.com/Microsoft/vcpkg.git --depth 1 --branch master
+
+          Write-Host "Bootstrapping vcpkg..." -ForegroundColor Cyan
           cd vcpkg
-          .\bootstrap-vcpkg.bat -disableMetrics
+          .\bootstrap-vcpkg.bat -disableMetrics -useSystemBinaries
         } else {
-          Write-Host "Using cached vcpkg..." -ForegroundColor Cyan
+          Write-Host "Using cached vcpkg..." -ForegroundColor Green
           cd vcpkg
         }
-        $vcpkgRoot = $PWD
+
+        # Get vcpkg root path
+        $vcpkgRoot = (Get-Location).Path
+        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+
+        # Set environment variables
         echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
         echo "$vcpkgRoot" >> $env:GITHUB_PATH
         echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
+
+        # Verify vcpkg installation
+        $vcpkgVersion = & .\vcpkg.exe version
+        Write-Host "vcpkg version: $($vcpkgVersion[0])" -ForegroundColor Green
+
         cd ..
-        Write-Host "vcpkg ready at: $vcpkgRoot" -ForegroundColor Green
+        Write-Host "vcpkg setup complete" -ForegroundColor Green
 
-    - name: Optimize vcpkg for performance
+    - name: Pre-install common dependencies
+      if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
-        Write-Host "=== Optimizing vcpkg for performance ===" -ForegroundColor Green
+        Write-Host "=== Pre-installing common dependencies ===" -ForegroundColor Green
 
-        # Configure vcpkg for better performance
-        Write-Host "Configuring vcpkg settings..." -ForegroundColor Cyan
         $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
         cd $vcpkgRoot
 
-        # Enable binary caching and parallel downloads
-        .\vcpkg.exe integrate install --dry-run | Out-Null
+        # Pre-download common packages for all triplets
+        $triplets = @("x86-windows", "x64-windows", "arm64-windows")
+        $commonPackages = @(
+          "freetype",
+          "libpng",
+          "zlib",
+          "brotli",
+          "detours",
+          "nlohmann-json"
+        )
 
-        # Pre-download common packages to reduce build time
-        Write-Host "Pre-downloading common dependencies..." -ForegroundColor Cyan
-        .\vcpkg.exe install --triplet x64-windows --only-downloads --binarycaching
-        Write-Host "vcpkg optimization complete" -ForegroundColor Green
+        foreach ($triplet in $triplets) {
+          Write-Host "Pre-downloading for $triplet..." -ForegroundColor Cyan
+          foreach ($package in $commonPackages) {
+            Write-Host "  Pre-downloading $package..." -ForegroundColor Gray
+            .\vcpkg.exe install $package --triplet $triplet --only-downloads --binarycaching 2>&1 | Out-Null
+          }
+        }
+
+        Write-Host "Common dependencies pre-downloaded" -ForegroundColor Green
 
     - name: Complete setup
       id: setup-complete
@@ -179,7 +287,10 @@ jobs:
     name: Build Universal MacType Manager
     runs-on: windows-latest
     needs: setup-environment
-    timeout-minutes: 30
+    timeout-minutes: 25
+    outputs:
+      build-time: ${{ steps.build-manager.outputs.build-time }}
+      package-size: ${{ steps.package-manager.outputs.package-size }}
 
     steps:
     - name: Checkout code
@@ -187,91 +298,139 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Restore environment
+    - name: Setup build environment
       run: |
-        Write-Host "Restoring build environment..." -ForegroundColor Cyan
-        echo "VCPKG_ROOT=${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_ENV
-        echo "${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_PATH
+        Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-    - name: Configure and Build Universal Manager
-      run: |
-        Write-Host "=== Building Universal MacType Manager ===" -ForegroundColor Green
+        # Restore vcpkg environment
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+        echo "$vcpkgRoot" >> $env:GITHUB_PATH
 
+        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+
+        # Create build directory
         if (Test-Path "build-manager") {
           Remove-Item -Recurse -Force build-manager
         }
         mkdir build-manager
         cd build-manager
 
-        # Universal Windows App 구성 (Visual Studio generator 사용)
-        Write-Host "Configuring Universal Windows App (x64 + ARM64)..." -ForegroundColor Cyan
+    - name: Configure Universal Manager
+      run: |
+        Write-Host "=== Configuring Universal MacType Manager ===" -ForegroundColor Green
 
-        # vcpkg 경로 확인
+        cd build-manager
+
+        # Verify vcpkg toolchain
         $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
-        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
-
         $vcpkgToolchain = "$vcpkgRoot/scripts/buildsystems/vcpkg.cmake"
-        Write-Host "vcpkg toolchain: $vcpkgToolchain" -ForegroundColor Cyan
 
         if (!(Test-Path $vcpkgToolchain)) {
           Write-Host "ERROR: vcpkg toolchain not found at $vcpkgToolchain" -ForegroundColor Red
           exit 1
         }
 
-        # Ninja 대신 Visual Studio generator 사용 (platform 지원)
+        Write-Host "vcpkg toolchain found: $vcpkgToolchain" -ForegroundColor Green
+
+        # Configure with Visual Studio generator for UWP support
+        Write-Host "Configuring Universal Windows App (x64 + ARM64)..." -ForegroundColor Cyan
+
         $cmakeArgs = @(
             "..",
             "-G", "Visual Studio 17 2022",
             "-A", "x64",
-            "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}",
             "-DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain",
             "-DVCPKG_TARGET_TRIPLET=x64-windows",
             "-DBUILD_MODERN_MANAGER=ON",
             "-DCMAKE_SYSTEM_NAME=WindowsStore",
-            "-DCMAKE_SYSTEM_VERSION=10.0"
+            "-DCMAKE_SYSTEM_VERSION=10.0",
+            "-DCMAKE_CXX_FLAGS=/MP /O2 /DNDEBUG",
+            "-DCMAKE_C_FLAGS=/MP /O2 /DNDEBUG"
         )
 
+        Write-Host "CMake arguments: $($cmakeArgs -join ' ')" -ForegroundColor Gray
+
+        $configStart = Get-Date
         & cmake @cmakeArgs
 
-        # Universal Windows Platform 앱 빌드
-        Write-Host "Building Universal MacType Manager (x64 + ARM64)..." -ForegroundColor Cyan
-        cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS --target MacTypeManager
-
-        # 빌드 결과 확인
-        Write-Host "Universal Manager build completed. Checking artifacts..." -ForegroundColor Cyan
-        Get-ChildItem -Path "." -Include "*.exe", "*.dll", "*.msix", "*.appx" -Recurse | ForEach-Object {
-          Write-Host "  📦 $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)" -ForegroundColor Green
-        }
-
-    - name: Create Universal Manager Package
-      run: |
-        Write-Host "Creating Universal Manager package..." -ForegroundColor Cyan
-        cd build-manager
-
-        # 실행 파일 확인 및 패키징
-        $exeFiles = Get-ChildItem -Path "." -Filter "*.exe" -Recurse
-        if ($exeFiles.Count -gt 0) {
-          Write-Host "Found executable files:" -ForegroundColor Green
-          $exeFiles | ForEach-Object {
-            Write-Host "  $($_.FullName)" -ForegroundColor Gray
-          }
-
-          # ZIP 패키지 생성
-          Compress-Archive -Path "*.exe", "*.dll", "*.pri", "*.appx" -DestinationPath "../MacTypeManager-Universal.zip" -CompressionLevel Optimal
-          Write-Host "Universal Manager package created" -ForegroundColor Green
-        } else {
-          Write-Host "No executable files found!" -ForegroundColor Red
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "CMake configuration failed" -ForegroundColor Red
           exit 1
         }
+
+        $configEnd = Get-Date
+        $configTime = ($configEnd - $configStart).TotalSeconds
+        Write-Host "Configuration completed in $($configTime.ToString("F1"))s" -ForegroundColor Green
+
+    - name: Build Universal Manager
+      id: build-manager
+      run: |
+        Write-Host "=== Building Universal MacType Manager ===" -ForegroundColor Green
+
+        cd build-manager
+
+        # Build with MSBuild for UWP support
+        $buildStart = Get-Date
+        Write-Host "Building with MSBuild..." -ForegroundColor Cyan
+
+        $msbuildArgs = @(
+            "MacTypeManager.vcxproj",
+            "/p:Configuration=${{ env.BUILD_TYPE }}",
+            "/p:Platform=x64",
+            "/p:AppxBundle=Always",
+            "/p:UapAppxPackageBuildMode=SideloadOnly",
+            "/p:WindowsAppSDKBootstrapAutoInitializeOptions_Platform=x64;ARM64",
+            "/maxCpuCount:${{ env.MSBUILD_MAX_CPU_COUNT }}",
+            "/verbosity:minimal"
+        )
+
+        & msbuild @msbuildArgs
+
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "MSBuild failed" -ForegroundColor Red
+          exit 1
+        }
+
+        $buildEnd = Get-Date
+        $buildTime = ($buildEnd - $buildStart).TotalSeconds
+        echo "build-time=$buildTime" >> $env:GITHUB_OUTPUT
+
+        Write-Host "Build completed in $($buildTime.ToString("F1"))s" -ForegroundColor Green
+
+    - name: Package Universal Manager
+      id: package-manager
+      run: |
+        Write-Host "=== Packaging Universal MacType Manager ===" -ForegroundColor Green
+
+        cd build-manager
+
+        # Find built artifacts
+        $appxFiles = Get-ChildItem -Path "." -Include "*.msix", "*.appx" -Recurse -ErrorAction SilentlyContinue
+
+        if ($appxFiles.Count -eq 0) {
+          Write-Host "ERROR: No MSIX/APKX files found" -ForegroundColor Red
+          exit 1
+        }
+
+        $totalSize = 0
+        foreach ($file in $appxFiles) {
+          $sizeMB = [math]::Round($file.Length / 1MB, 2)
+          $totalSize += $file.Length
+          Write-Host "Found package: $($file.Name) ($sizeMB MB)" -ForegroundColor Cyan
+        }
+
+        $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+        echo "package-size=$totalSizeMB" >> $env:GITHUB_OUTPUT
+
+        Write-Host "Total package size: $totalSizeMB MB" -ForegroundColor Green
 
     - name: Upload Universal Manager
       uses: actions/upload-artifact@v4
       with:
         name: MacTypeManager-Universal
-        path: |
-          MacTypeManager-Universal.zip
-          build-manager/*.exe
-          build-manager/*.dll
+        path: build-manager/*.msix
         retention-days: 30
         if-no-files-found: error
 
@@ -281,6 +440,9 @@ jobs:
     runs-on: windows-latest
     needs: setup-environment
     timeout-minutes: 35
+    outputs:
+      build-times: ${{ steps.build-platforms.outputs.build-times }}
+      total-size: ${{ steps.package-platforms.outputs.total-size }}
 
     steps:
     - name: Checkout code
@@ -288,20 +450,18 @@ jobs:
       with:
         fetch-depth: 1
 
-    - name: Restore environment
+    - name: Setup build environment
       run: |
-        Write-Host "Restoring build environment..." -ForegroundColor Cyan
-        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
-        if (Test-Path $vcpkgRoot) {
-            echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
-            echo "$vcpkgRoot" >> $env:GITHUB_PATH
-            Write-Host "vcpkg root restored: $vcpkgRoot" -ForegroundColor Green
-        } else {
-            Write-Host "vcpkg root not found: $vcpkgRoot" -ForegroundColor Red
-            exit 1
-        }
+        Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
-    - name: Install multi-platform dependencies
+        # Restore vcpkg environment
+        $vcpkgRoot = "${{ needs.setup-environment.outputs.vcpkg-root }}"
+        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+        echo "$vcpkgRoot" >> $env:GITHUB_PATH
+
+        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+
+    - name: Install platform dependencies
       run: |
         Write-Host "=== Installing Multi-Platform Dependencies ===" -ForegroundColor Green
 
@@ -338,7 +498,8 @@ jobs:
 
         Write-Host "All platform dependencies ready" -ForegroundColor Green
 
-    - name: Build All Platforms
+    - name: Build all platforms
+      id: build-platforms
       run: |
         Write-Host "=== Building All Platforms (x64 Host) ===" -ForegroundColor Green
 
@@ -349,6 +510,7 @@ jobs:
           @{Name="ARM64"; Platform="ARM64"; Triplet="arm64-windows"; Agent="ON"; Manager="OFF"; Desc="ARM64 Agent + Core"}
         )
 
+        $buildTimes = @{}
         $totalBuildStart = Get-Date
 
         foreach ($plat in $platforms) {
@@ -368,8 +530,8 @@ jobs:
           # 플랫폼별 CMake 구성
           $cmakeArgs = @(
               "..",
-              "-G", $env:CMAKE_GENERATOR,
-              "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE",
+              "-G", "${{ env.CMAKE_GENERATOR }}",
+              "-DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}",
               "-DCMAKE_GENERATOR_PLATFORM=$($plat.Platform)",
               "-DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain",
               "-DVCPKG_TARGET_TRIPLET=$($plat.Triplet)",
@@ -383,15 +545,21 @@ jobs:
 
           & cmake @cmakeArgs
 
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "CMake configuration failed for $($plat.Name)" -ForegroundColor Red
+            exit 1
+          }
+
           # 병렬 빌드
-          $parallelJobs = [math]::Min([int]$env:CMAKE_BUILD_PARALLEL_LEVEL, [int]$env:NUMBER_OF_PROCESSORS + 2)
+          $parallelJobs = [math]::Min([int]"${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}", [int]$env:NUMBER_OF_PROCESSORS + 2)
           Write-Host "Building with $parallelJobs parallel jobs..." -ForegroundColor Gray
 
           $buildStart = Get-Date
-          cmake --build . --config $env:BUILD_TYPE --parallel $parallelJobs --verbose
+          cmake --build . --config ${{ env.BUILD_TYPE }} --parallel $parallelJobs --verbose
           $buildEnd = Get-Date
           $buildTime = ($buildEnd - $buildStart).TotalSeconds
 
+          $buildTimes[$plat.Name] = $buildTime
           Write-Host "$($plat.Name) build completed in $($buildTime.ToString("F1"))s" -ForegroundColor Green
 
           cd ..
@@ -401,11 +569,16 @@ jobs:
         $totalBuildTime = ($totalBuildEnd - $totalBuildStart).TotalSeconds
         Write-Host "All platforms built in $($totalBuildTime.ToString("F1")) seconds" -ForegroundColor Green
 
-    - name: Create Platform Packages
+        $buildTimesJson = $buildTimes | ConvertTo-Json
+        echo "build-times=$buildTimesJson" >> $env:GITHUB_OUTPUT
+
+    - name: Package platforms
+      id: package-platforms
       run: |
         Write-Host "=== Creating Platform Packages ===" -ForegroundColor Green
 
         $platforms = @("x86", "x64", "ARM64")
+        $totalSize = 0
 
         foreach ($platform in $platforms) {
           Write-Host "Creating $platform package..." -ForegroundColor Cyan
@@ -435,19 +608,20 @@ jobs:
               }
 
               # 파일 정보 출력
-              $totalSize = 0
+              $platformSize = 0
               $files | Sort-Object Length -Descending | ForEach-Object {
                 $sizeKB = [math]::Round($_.Length / 1KB, 2)
-                $totalSize += $_.Length
+                $platformSize += $_.Length
                 Write-Host "  $($_.Name) ($sizeKB KB)" -ForegroundColor Gray
               }
 
-              $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
-              Write-Host "$platform package size: $totalSizeMB MB" -ForegroundColor Cyan
+              $platformSizeMB = [math]::Round($platformSize / 1MB, 2)
+              $totalSize += $platformSize
+              Write-Host "$platform package size: $platformSizeMB MB" -ForegroundColor Cyan
 
               # 압축
-              $compressionLevel = if ($platform -eq "x86") { "Fastest" } else { $env:COMPRESSION_LEVEL }
-              Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-$platform-Release.zip" -CompressionLevel $compressionLevel
+              $compressionLevel = if ($platform -eq "x86") { "Fastest" } else { "${{ env.COMPRESSION_LEVEL }}" }
+              Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-$platform-${{ env.BUILD_TYPE }}.zip" -CompressionLevel $compressionLevel
 
               Write-Host "$platform package created" -ForegroundColor Green
             } else {
@@ -462,33 +636,17 @@ jobs:
           }
         }
 
-        Write-Host "All platform packages created" -ForegroundColor Green
+        $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+        echo "total-size=$totalSizeMB" >> $env:GITHUB_OUTPUT
 
-    - name: Verify Platform Builds
-      run: |
-        Write-Host "=== Verifying Platform Builds ===" -ForegroundColor Green
+        Write-Host "All platform packages created successfully" -ForegroundColor Green
+        Write-Host "Total size: $totalSizeMB MB" -ForegroundColor Cyan
 
-        $platforms = @("x86", "x64", "ARM64")
-
-        foreach ($platform in $platforms) {
-          $zipPath = "MacType-$platform-Release.zip"
-          if (Test-Path $zipPath) {
-            Write-Host "Found $platform build package: $zipPath" -ForegroundColor Green
-            $size = (Get-Item $zipPath).Length / 1MB
-            Write-Host "Size: $([math]::Round($size, 2)) MB" -ForegroundColor Cyan
-          } else {
-            Write-Host "ERROR: $platform ZIP not found!" -ForegroundColor Red
-            exit 1
-          }
-        }
-
-        Write-Host "All platform builds verified successfully" -ForegroundColor Green
-
-    - name: Upload All Platform Builds
+    - name: Upload all platform builds
       uses: actions/upload-artifact@v4
       with:
-        name: MacType-All-Platforms-Release
-        path: MacType-*-Release.zip
+        name: MacType-All-Platforms-${{ env.BUILD_TYPE }}
+        path: MacType-*-${{ env.BUILD_TYPE }}.zip
         retention-days: 30
         if-no-files-found: error
 
@@ -505,27 +663,35 @@ jobs:
       with:
         path: artifacts
 
-    - name: Organize and package release files
+    - name: Organize release files
       run: |
-        Write-Host "=== Creating Release Packages ===" -ForegroundColor Green
+        Write-Host "=== Organizing Release Files ===" -ForegroundColor Green
+
+        # Create release directory
         mkdir release-files
 
         # Copy all artifacts to release directory
         Write-Host "Copying artifacts to release directory..." -ForegroundColor Cyan
         Copy-Item -Path "artifacts\*" -Destination "release-files\" -Recurse -Force
 
-        # Create final release package
-        Write-Host "Creating final release package..." -ForegroundColor Cyan
-        Compress-Archive -Path "release-files\*" -DestinationPath "MacType-Release.zip" -CompressionLevel Optimal
+        Write-Host "Release files organized" -ForegroundColor Green
 
-        Write-Host "Release package created successfully" -ForegroundColor Green
+    - name: Create release packages
+      run: |
+        Write-Host "=== Creating Release Packages ===" -ForegroundColor Green
 
-    - name: Upload Release Package
+        # Create complete package
+        Write-Host "Creating complete release package..." -ForegroundColor Cyan
+        Compress-Archive -Path "release-files\*" -DestinationPath "MacType-Universal-Complete.zip" -CompressionLevel Optimal
+
+        Write-Host "Release packages created successfully" -ForegroundColor Green
+
+    - name: Upload release packages
       uses: actions/upload-artifact@v4
       with:
-        name: MacType-Release
-        path: MacType-Release.zip
-        retention-days: 30
+        name: MacType-Release-Packages
+        path: MacType-*.zip
+        retention-days: 60
 
   deploy-release:
     name: Deploy Release
@@ -535,18 +701,46 @@ jobs:
     timeout-minutes: 10
 
     steps:
-    - name: Download Release Package
+    - name: Download release packages
       uses: actions/download-artifact@v4
       with:
-        name: MacType-Release
-        path: release
+        name: MacType-Release-Packages
+        path: release-assets
 
-    - name: Deploy to Release
+    - name: Verify release packages
       run: |
-        Write-Host "=== Deploying Release ===" -ForegroundColor Green
+        Write-Host "=== Verifying Release Packages ===" -ForegroundColor Green
 
-        # List contents of release directory
-        Write-Host "Release contents:" -ForegroundColor Cyan
-        Get-ChildItem -Path "release" -Recurse
+        $releaseFiles = Get-ChildItem -Path "release-assets" -Filter "*.zip"
+        if ($releaseFiles.Count -eq 0) {
+          Write-Host "ERROR: No release packages found!" -ForegroundColor Red
+          exit 1
+        }
 
-        Write-Host "Deployment completed (mock deployment)" -ForegroundColor Green
+        Write-Host "Found $($releaseFiles.Count) release packages:" -ForegroundColor Cyan
+        $totalSize = 0
+        foreach ($file in $releaseFiles) {
+          $sizeMB = [math]::Round($file.Length / 1MB, 2)
+          $totalSize += $file.Length
+          Write-Host "  📦 $($file.Name) ($sizeMB MB)" -ForegroundColor Gray
+        }
+
+        $totalSizeGB = [math]::Round($totalSize / 1GB, 2)
+        Write-Host "Total release size: $totalSizeGB GB" -ForegroundColor Green
+
+    - name: Deploy to GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release-assets/*.zip
+        token: ${{ secrets.GITHUB_TOKEN }}
+        draft: false
+        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        generate_release_notes: true
+
+    - name: Deployment summary
+      run: |
+        Write-Host "=== Deployment Summary ===" -ForegroundColor Green
+        Write-Host "✅ MacType Universal has been successfully deployed!" -ForegroundColor Green
+        Write-Host "📦 Release packages uploaded to GitHub Releases" -ForegroundColor Cyan
+        Write-Host "🎯 All platforms supported: x86, x64, ARM64" -ForegroundColor Cyan
+        Write-Host "🛠️  Universal Manager + Platform-specific Agents" -ForegroundColor Cyan
