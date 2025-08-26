@@ -314,13 +314,29 @@ jobs:
           cd vcpkg
         }
 
-        # Get vcpkg root path
+        # Ensure we're in the vcpkg directory and get the correct path
+        if (!(Test-Path "vcpkg.exe")) {
+          Write-Host "ERROR: Not in vcpkg directory or vcpkg.exe not found" -ForegroundColor Red
+          Write-Host "Current location: $(Get-Location)" -ForegroundColor Red
+          Get-ChildItem -Name | Write-Host
+          exit 1
+        }
+
+        # Get vcpkg root path (absolute path)
         $vcpkgRoot = (Get-Location).Path
         Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+
+        # Verify the path is correct
+        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
+        if (!(Test-Path $vcpkgExePath)) {
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Red
+          exit 1
+        }
 
         # Set environment variables for all jobs
         echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
         echo "$vcpkgRoot" >> $env:GITHUB_PATH
+        Write-Host "Environment variables set for VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Green
 
         # Verify vcpkg installation with full path
         $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
@@ -404,6 +420,17 @@ jobs:
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
         # Use vcpkg environment from setup-environment
+        if ([string]::IsNullOrEmpty($env:VCPKG_ROOT)) {
+          Write-Host "ERROR: VCPKG_ROOT environment variable is not set" -ForegroundColor Red
+          exit 1
+        }
+
+        $vcpkgExePath = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+        if (!(Test-Path $vcpkgExePath)) {
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Red
+          exit 1
+        }
+
         Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Cyan
 
         # Create build directory
@@ -552,6 +579,17 @@ jobs:
         Write-Host "=== Setting up build environment ===" -ForegroundColor Green
 
         # Use vcpkg environment from setup-environment
+        if ([string]::IsNullOrEmpty($env:VCPKG_ROOT)) {
+          Write-Host "ERROR: VCPKG_ROOT environment variable is not set" -ForegroundColor Red
+          exit 1
+        }
+
+        $vcpkgExePath = Join-Path $env:VCPKG_ROOT "vcpkg.exe"
+        if (!(Test-Path $vcpkgExePath)) {
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExePath" -ForegroundColor Red
+          exit 1
+        }
+
         Write-Host "Using VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Cyan
 
     - name: Install platform dependencies
@@ -560,6 +598,11 @@ jobs:
 
         # vcpkg 경로 설정
         $vcpkgRoot = $env:VCPKG_ROOT
+        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+          Write-Host "ERROR: VCPKG_ROOT environment variable is not set" -ForegroundColor Red
+          exit 1
+        }
+
         $vcpkgExe = "$vcpkgRoot/vcpkg.exe"
 
         if (!(Test-Path $vcpkgExe)) {
