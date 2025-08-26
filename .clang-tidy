@@ -1,0 +1,69 @@
+---
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  modernize-*,
+  readability-*,
+  performance-*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-type-vararg,
+  -performance-no-int-to-ptr,
+  -bugprone-narrowing-conversions,
+  -bugprone-exception-escape,
+  -readability-function-cognitive-complexity,
+  -readability-uppercase-literal-suffix
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+AnalyzeTemporaryDtors: false
+FormatStyle: file
+
+CheckOptions:
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: 2
+  - key: readability-function-size.LineThreshold
+    value: 100
+  - key: readability-function-size.StatementThreshold
+    value: 50
+  - key: readability-function-size.BranchThreshold
+    value: 10
+  - key: performance-unnecessary-value-param.IncludeStyle
+    value: llvm::StringSwitch
+  - key: modernize-loop-convert.MaxCopySize
+    value: 16
+  - key: modernize-loop-convert.MinConfidence
+    value: reasonable
+  - key: modernize-make-shared.IgnoreMacros
+    value: 1
+  - key: modernize-make-unique.IgnoreMacros
+    value: 1
+  - key: modernize-pass-by-value.IncludeStyle
+    value: llvm::StringSwitch
+  - key: modernize-replace-auto-ptr.IncludeStyle
+    value: llvm::StringSwitch
+  - key: modernize-use-auto.MinTypeNameLength
+    value: 5
+  - key: modernize-use-auto.RemoveStars
+    value: 1
+  - key: modernize-use-default-member-init.IgnoreMacros
+    value: 1
+  - key: modernize-use-emplace.IgnoreImplicitConstructors
+    value: 1
+  - key: modernize-use-emplace.TupleTypes
+    value: '::std::pair;::std::tuple'
+  - key: modernize-use-emplace.TupleMakeFunctions
+    value: '::std::make_pair;::std::make_tuple'
+  - key: modernize-use-equals-default.IgnoreMacros
+    value: 1
+  - key: modernize-use-noexcept.IgnoreMacros
+    value: 1
+  - key: modernize-use-transparent-functors.IgnoreMacros
+    value: 1

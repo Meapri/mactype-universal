@@ -163,7 +163,7 @@ namespace config_constants {
     constexpr int SLANT_MAX = 32;
 }
 
-// Modern settings instance creation with RAII
+// Modern settings instance creation with enhanced RAII and error handling
 CGdippSettings* CGdippSettings::CreateInstance() {
     CCriticalSectionLock lock(CCriticalSectionLock::CS_SETTING);
 
@@ -181,20 +181,38 @@ CGdippSettings* CGdippSettings::CreateInstance() {
     // Ensure no previous instance exists
     assert(pOldSettings == nullptr);
 
-    // Modern path handling using std::filesystem
-    std::array<wchar_t, MAX_PATH> exePath = {};
-    const DWORD pathLength = GetModuleFileNameW(nullptr, exePath.data(), exePath.size());
+    // Modern path handling using std::filesystem with error handling
+    try {
+        std::array<wchar_t, MAX_PATH> exePath = {};
+        const DWORD pathLength = GetModuleFileNameW(nullptr, exePath.data(), exePath.size());
 
-    if (pathLength > 0 && pathLength < exePath.size()) {
-        std::filesystem::path fullPath(exePath.data());
-        std::filesystem::path fileName = fullPath.filename();
+        if (pathLength == 0) {
+            // Log error but continue with empty filename
+            debug_utils::logDebugInfo("GetModuleFileNameW failed");
+            pSettings->m_szexeName[0] = L'\0';
+        } else if (pathLength >= exePath.size()) {
+            // Path too long
+            debug_utils::logDebugInfo("Module path too long");
+            pSettings->m_szexeName[0] = L'\0';
+        } else {
+            std::filesystem::path fullPath(exePath.data());
+            std::filesystem::path fileName = fullPath.filename();
 
-        // Copy filename to settings (legacy compatibility)
-        const auto fileNameWStr = fileName.wstring();
-        if (fileNameWStr.size() < MAX_PATH) {
-            std::copy(fileNameWStr.begin(), fileNameWStr.end(), pSettings->m_szexeName);
-            pSettings->m_szexeName[fileNameWStr.size()] = L'\0';
+            // Copy filename to settings (legacy compatibility)
+            const auto fileNameWStr = fileName.wstring();
+            if (fileNameWStr.size() < MAX_PATH) {
+                std::copy(fileNameWStr.begin(), fileNameWStr.end(), pSettings->m_szexeName);
+                pSettings->m_szexeName[fileNameWStr.size()] = L'\0';
+            } else {
+                // Filename too long, truncate
+                std::copy(fileNameWStr.begin(), fileNameWStr.begin() + MAX_PATH - 1, pSettings->m_szexeName);
+                pSettings->m_szexeName[MAX_PATH - 1] = L'\0';
+            }
         }
+    } catch (const std::exception& e) {
+        // Log error but don't crash
+        debug_utils::logDebugInfo(std::string("Exception in path handling: ") + e.what());
+        pSettings->m_szexeName[0] = L'\0';
     }
 
     return pSettings.release(); // Release ownership to caller

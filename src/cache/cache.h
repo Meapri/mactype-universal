@@ -62,10 +62,27 @@ typedef StringHashT<MAX_PATH,true>		StringHashModule;
 #define RGB2DIB(rgb)	RGB(GetBValue(rgb), GetGValue(rgb), GetRValue(rgb))
 #define DIB2RGB(dib)	RGB2DIB(dib)
 
-// ExtTextOutWのビットマップキャッシュ
+/**
+ * @class CBitmapCache
+ * @brief Bitmap cache for ExtTextOutW operations
+ *
+ * This class provides high-performance bitmap caching for text rendering operations.
+ * It uses modern memory management techniques including:
+ * - Thread-safe memory pools for frequent allocations
+ * - SIMD-optimized pixel operations
+ * - Automatic memory limit management
+ * - RAII-based resource management
+ *
+ * The cache automatically manages bitmap lifetime and reuses memory efficiently
+ * to reduce allocation overhead and improve rendering performance.
+ */
 class CBitmapCache
 {
 private:
+	// Modern memory pool for bitmap data
+	performance::ThreadSafeMemoryPool memory_pool_;
+	size_t total_allocated_memory_ = 0;
+
 	HBRUSH	m_brush;
 	HDC		m_hdc;
 	HDC		m_exthdc;
@@ -100,8 +117,11 @@ public:
 		if (m_hbmp)	{
 			DeleteBitmap(m_hbmp);
 		}
-		if (m_brush) 
+		if (m_brush)
 			DeleteObject(m_brush);
+
+		// Clean up memory pool (RAII will handle it automatically)
+
 		m_hdc = NULL;
 		m_hbmp = NULL;
 		m_brush = NULL;

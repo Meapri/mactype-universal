@@ -1,0 +1,51 @@
+@PACKAGE_INIT@
+
+# MacType CMake Configuration
+
+set(MacType_VERSION "@PROJECT_VERSION@")
+
+set_and_check(MacType_INCLUDE_DIR "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set_and_check(MacType_LIBRARY_DIR "@PACKAGE_CMAKE_INSTALL_LIBDIR@")
+
+# Find dependencies
+find_package(FreeType REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(PNG REQUIRED)
+find_package(Brotli REQUIRED)
+find_package(BZip2 REQUIRED)
+find_package(nlohmann_json REQUIRED)
+
+if(WIN32)
+    find_package(detours REQUIRED)
+endif()
+
+# Provide legacy variables
+set(MacType_LIBRARIES MacType::mactype)
+set(MacType_INCLUDE_DIRS "${MacType_INCLUDE_DIR}")
+
+# Create imported target
+if(NOT TARGET MacType::mactype)
+    include("${CMAKE_CURRENT_LIST_DIR}/MacTypeTargets.cmake")
+
+    # Set properties on the imported target
+    get_target_property(MacType_INTERFACE_LINK_LIBRARIES MacType::mactype INTERFACE_LINK_LIBRARIES)
+    get_target_property(MacType_INTERFACE_INCLUDE_DIRECTORIES MacType::mactype INTERFACE_INCLUDE_DIRECTORIES)
+
+    set_target_properties(MacType::mactype PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${MacType_INTERFACE_LINK_LIBRARIES}"
+        INTERFACE_INCLUDE_DIRECTORIES "${MacType_INTERFACE_INCLUDE_DIRECTORIES}"
+    )
+endif()
+
+# Provide legacy target name
+if(NOT TARGET mactype)
+    add_library(mactype ALIAS MacType::mactype)
+endif()
+
+# Display found message
+if(NOT MacType_FIND_QUIETLY)
+    message(STATUS "Found MacType: ${MacType_VERSION}")
+endif()
+
+# Check required components
+check_required_components(MacType)

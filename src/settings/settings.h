@@ -41,12 +41,25 @@ namespace string_conversions {
 
 } // namespace string_conversions
 
-// MacType FreeType 확장 함수 선언
+/**
+ * @brief FreeType LCD mode setting function
+ * @param library FreeType library instance
+ * @param mode LCD rendering mode
+ */
 extern "C" {
 	void FT_LCDMode_Set(FT_Library library, int mode);
 }
 
-// MacType INI 파서 클래스 정의
+/**
+ * @class CParseIni
+ * @brief Modern INI file parser for MacType configuration
+ *
+ * This class provides enhanced INI file parsing with modern C++ features:
+ * - Exception-safe operations
+ * - UTF-8/UTF-16 string handling
+ * - Type-safe configuration access
+ * - Memory-efficient storage
+ */
 class CParseIni {
 public:
     class Section {

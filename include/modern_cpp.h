@@ -1,7 +1,19 @@
 #pragma once
 /*
- * MacType 현대적 C++ 기능 헤더
- * C++17/20 표준 기능과 최신 개발 패턴을 제공합니다.
+ * @file modern_cpp.h
+ * @brief MacType Modern C++ Utilities
+ *
+ * This header provides modern C++17/20 features and patterns for MacType.
+ * It includes utilities for:
+ * - Memory management (RAII, smart pointers)
+ * - Error handling (expected types, error codes)
+ * - Performance optimization (memory pools, SIMD)
+ * - String processing (modern string views)
+ * - Threading (thread-safe operations)
+ *
+ * @author MacType Development Team
+ * @version 2.0.0
+ * @date 2024
  */
 
 #include "sdk_compat.h"
@@ -325,6 +337,119 @@ namespace error_handling {
         return std::error_code{ hr, std::system_category() };
     }
 
+    // Enhanced error types
+    enum class ErrorType {
+        WindowsAPI,
+        MemoryAllocation,
+        InvalidArgument,
+        FileSystem,
+        FontEngine,
+        HookFailure,
+        Unknown
+    };
+
+    class MacTypeError {
+    private:
+        ErrorType type_;
+        std::string message_;
+        std::error_code error_code_;
+
+    public:
+        MacTypeError(ErrorType type, std::string message, std::error_code ec = {})
+            : type_(type), message_(std::move(message)), error_code_(ec) {}
+
+        [[nodiscard]] ErrorType type() const noexcept { return type_; }
+        [[nodiscard]] const std::string& message() const noexcept { return message_; }
+        [[nodiscard]] const std::error_code& error_code() const noexcept { return error_code_; }
+
+        [[nodiscard]] std::string full_message() const {
+            std::string result = message_;
+            if (error_code_) {
+                result += " (Error: " + error_code_.message() + ")";
+            }
+            return result;
+        }
+    };
+
+    // RAII wrapper for Windows handles
+    template<typename HandleType, typename Deleter>
+    class HandleWrapper {
+    private:
+        HandleType handle_;
+        Deleter deleter_;
+
+    public:
+        explicit HandleWrapper(HandleType handle, Deleter deleter) noexcept
+            : handle_(handle), deleter_(deleter) {}
+
+        ~HandleWrapper() noexcept {
+            if (handle_) {
+                deleter_(handle_);
+            }
+        }
+
+        // Prevent copying
+        HandleWrapper(const HandleWrapper&) = delete;
+        HandleWrapper& operator=(const HandleWrapper&) = delete;
+
+        // Allow moving
+        HandleWrapper(HandleWrapper&& other) noexcept
+            : handle_(std::exchange(other.handle_, {}))
+            , deleter_(std::move(other.deleter_)) {}
+
+        HandleWrapper& operator=(HandleWrapper&& other) noexcept {
+            if (this != &other) {
+                reset();
+                handle_ = std::exchange(other.handle_, {});
+                deleter_ = std::move(other.deleter_);
+            }
+            return *this;
+        }
+
+        [[nodiscard]] HandleType get() const noexcept { return handle_; }
+        [[nodiscard]] explicit operator bool() const noexcept { return handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE; }
+
+        void reset() noexcept {
+            if (handle_) {
+                deleter_(handle_);
+                handle_ = {};
+            }
+        }
+
+        [[nodiscard]] HandleType release() noexcept {
+            return std::exchange(handle_, {});
+        }
+    };
+
+    // Common handle wrappers
+    using UniqueHandle = HandleWrapper<HANDLE, decltype(&CloseHandle)>;
+    using UniqueHDC = HandleWrapper<HDC, decltype(&DeleteDC)>;
+    using UniqueHBITMAP = HandleWrapper<HBITMAP, decltype(&DeleteBitmap)>;
+
+    // Safe Windows API call wrapper
+    template<typename Fn, typename... Args>
+    [[nodiscard]] expected<typename std::invoke_result_t<Fn, Args...>, MacTypeError>
+    safe_api_call(Fn&& fn, Args&&... args) noexcept {
+        try {
+            auto result = std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...);
+            if constexpr (std::is_same_v<decltype(result), BOOL>) {
+                if (result == FALSE) {
+                    return MacTypeError{ErrorType::WindowsAPI, "Windows API call failed", last_error()};
+                }
+                return true;
+            } else if constexpr (std::is_same_v<decltype(result), HRESULT>) {
+                if (FAILED(result)) {
+                    return MacTypeError{ErrorType::WindowsAPI, "COM API call failed", from_hresult(result)};
+                }
+                return result;
+            } else {
+                return result;
+            }
+        } catch (const std::exception& e) {
+            return MacTypeError{ErrorType::Unknown, std::string("Exception in API call: ") + e.what()};
+        }
+    }
+
 } // namespace error_handling
 
 // 9. 성능 측정 유틸리티
@@ -353,7 +478,156 @@ namespace performance {
 
 } // namespace performance
 
-// 10. 레거시 호환성 유틸리티
+// 10. 메모리 및 성능 최적화 유틸리티
+namespace performance {
+
+// Memory pool for frequent allocations
+class MemoryPool {
+private:
+    struct Block {
+        void* data;
+        size_t size;
+        bool in_use;
+        Block* next;
+    };
+
+    Block* free_list_ = nullptr;
+    size_t block_size_;
+    size_t pool_size_;
+    std::vector<std::unique_ptr<char[]>> pools_;
+
+public:
+    explicit MemoryPool(size_t block_size = 4096, size_t pool_size = 1024 * 1024)
+        : block_size_(block_size), pool_size_(pool_size) {}
+
+    ~MemoryPool() noexcept {
+        clear();
+    }
+
+    void* allocate(size_t size) {
+        if (size > block_size_) {
+            // For large allocations, use direct allocation
+            return new char[size];
+        }
+
+        // Try to find a free block
+        if (free_list_) {
+            Block* block = free_list_;
+            free_list_ = block->next;
+            block->in_use = true;
+            return block->data;
+        }
+
+        // Allocate new pool
+        auto new_pool = std::make_unique<char[]>(pool_size_);
+        char* pool_data = new_pool.get();
+        pools_.push_back(std::move(new_pool));
+
+        // Create blocks from the new pool
+        size_t num_blocks = pool_size_ / block_size_;
+        for (size_t i = 0; i < num_blocks; ++i) {
+            Block* block = new Block{
+                pool_data + i * block_size_,
+                block_size_,
+                false,
+                free_list_
+            };
+            free_list_ = block;
+        }
+
+        // Allocate from the new free list
+        if (free_list_) {
+            Block* block = free_list_;
+            free_list_ = block->next;
+            block->in_use = true;
+            return block->data;
+        }
+
+        return nullptr; // Should not reach here
+    }
+
+    void deallocate(void* ptr, size_t size) {
+        if (!ptr) return;
+
+        if (size > block_size_) {
+            delete[] static_cast<char*>(ptr);
+            return;
+        }
+
+        // Find the block and mark it as free
+        // This is a simplified version - in production, you'd want a better data structure
+        for (auto& pool : pools_) {
+            char* pool_start = pool.get();
+            char* pool_end = pool_start + pool_size_;
+
+            if (ptr >= pool_start && ptr < pool_end) {
+                Block* new_block = new Block{
+                    ptr,
+                    block_size_,
+                    false,
+                    free_list_
+                };
+                free_list_ = new_block;
+                return;
+            }
+        }
+    }
+
+    void clear() noexcept {
+        while (free_list_) {
+            Block* block = free_list_;
+            free_list_ = block->next;
+            delete block;
+        }
+        pools_.clear();
+    }
+};
+
+// Thread-safe memory pool wrapper
+class ThreadSafeMemoryPool {
+private:
+    MemoryPool pool_;
+    std::mutex mutex_;
+
+public:
+    void* allocate(size_t size) {
+        std::lock_guard lock(mutex_);
+        return pool_.allocate(size);
+    }
+
+    void deallocate(void* ptr, size_t size) {
+        std::lock_guard lock(mutex_);
+        pool_.deallocate(ptr, size);
+    }
+};
+
+// SIMD utilities for font rendering optimization
+namespace simd {
+
+#ifdef __AVX2__
+    // AVX2-optimized memory operations
+    inline void fast_copy(void* dst, const void* src, size_t size) {
+        size_t i = 0;
+        for (; i + 32 <= size; i += 32) {
+            __m256i data = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(static_cast<const char*>(src) + i));
+            _mm256_storeu_si256(reinterpret_cast<__m256i*>(static_cast<char*>(dst) + i), data);
+        }
+        // Handle remaining bytes
+        for (; i < size; ++i) {
+            static_cast<char*>(dst)[i] = static_cast<const char*>(src)[i];
+        }
+    }
+#else
+    inline void fast_copy(void* dst, const void* src, size_t size) {
+        std::memcpy(dst, src, size);
+    }
+#endif
+
+} // namespace simd
+
+} // namespace performance
+
+// 11. 레거시 호환성 유틸리티
 namespace legacy_compat {
 
     // Modern string tokenizer for legacy TCHAR support
