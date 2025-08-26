@@ -360,11 +360,23 @@ jobs:
       run: |
         Write-Host "=== Pre-installing common dependencies ===" -ForegroundColor Green
 
-        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
+        # Determine vcpkg root path
+        $vcpkgRoot = $env:VCPKG_ROOT
+        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+          # Try to find vcpkg in current directory
+          if (Test-Path "vcpkg/vcpkg.exe") {
+            $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+            Write-Host "Found vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
+          } else {
+            Write-Host "vcpkg not found, skipping pre-installation" -ForegroundColor Yellow
+            exit 0
+          }
+        }
+
         $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
 
         if (!(Test-Path $vcpkgExePath)) {
-          Write-Host "vcpkg.exe not found, skipping pre-installation" -ForegroundColor Yellow
+          Write-Host "vcpkg.exe not found at $vcpkgExePath, skipping pre-installation" -ForegroundColor Yellow
           exit 0
         }
 
@@ -397,7 +409,22 @@ jobs:
 
         Write-Host "Common dependencies pre-downloaded" -ForegroundColor Green
 
+        # Set VCPKG_ROOT for subsequent jobs
+        $vcpkgRoot = $env:VCPKG_ROOT
+        if ([string]::IsNullOrEmpty($vcpkgRoot)) {
+          # Calculate vcpkg root if environment variable is not set
+          if (Test-Path "vcpkg/vcpkg.exe") {
+            $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+            echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+            echo "$vcpkgRoot" >> $env:GITHUB_PATH
+          } else {
+            Write-Host "ERROR: Cannot determine vcpkg root path" -ForegroundColor Red
+            exit 1
+          }
+        }
+
         Write-Host "Environment setup completed successfully!" -ForegroundColor Green
+        Write-Host "Final VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
   # Universal Manager 빌드 (x64 + ARM64 지원)
   build-manager:
