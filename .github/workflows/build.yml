@@ -55,7 +55,7 @@ jobs:
   # 환경 검증 및 사전 준비 (선택적)
   validate-environment:
     name: Validate Environment (Optional)
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 5
     continue-on-error: true
     outputs:
@@ -111,7 +111,7 @@ jobs:
   # 공통 환경 설정 및 의존성 설치
   setup-environment:
     name: Setup Build Environment
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 25
     outputs:
       status: 'success'
@@ -130,7 +130,7 @@ jobs:
 
   finalize-setup:
     name: Finalize Setup Status
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: setup-environment
     if: always() && (needs.setup-environment.result == 'success' || needs.setup-environment.result == 'failure')
     outputs:
@@ -149,7 +149,7 @@ jobs:
   build-manager:
     if: needs.finalize-setup.outputs.setup-status == 'success'
     name: Build Universal MacType Manager
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: [setup-environment, finalize-setup]
     timeout-minutes: 25
     outputs:
@@ -179,7 +179,7 @@ jobs:
   build-agents:
     if: needs.finalize-setup.outputs.setup-status == 'success'
     name: Build All Platforms (x64 Host)
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: [setup-environment, finalize-setup]
     timeout-minutes: 35
     outputs:
@@ -208,7 +208,7 @@ jobs:
 
   create-release:
     name: Create Release
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: [build-manager, build-agents]
     timeout-minutes: 10
     outputs:
@@ -224,7 +224,7 @@ jobs:
 
   deploy-release:
     name: Deploy Release
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: create-release
     timeout-minutes: 5
 
