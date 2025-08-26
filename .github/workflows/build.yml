@@ -348,30 +348,89 @@ jobs:
         # Verify installations
         Write-Host "Verifying vcpkg installations..." -ForegroundColor Cyan
 
-        # First, check the vcpkg installation structure (in project root)
-        Write-Host "Checking vcpkg installation structure..." -ForegroundColor Yellow
+        # Check for vcpkg installed packages using multiple possible locations
+        Write-Host "Checking for installed packages..." -ForegroundColor Yellow
 
-        $installedPath = "vcpkg\installed"
-        if (!(Test-Path $installedPath)) {
-          Write-Host "ERROR: installed directory does not exist at $installedPath" -ForegroundColor Red
-          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-          Write-Host "Contents of current directory:" -ForegroundColor Yellow
-          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
-          Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
-          if (Test-Path "vcpkg") {
-            Get-ChildItem -Path "vcpkg" -Name -ErrorAction SilentlyContinue
-          } else {
-            Write-Host "vcpkg directory does not exist!" -ForegroundColor Red
+        $installedPath = $null
+        $possibleInstalledPaths = @(
+          "vcpkg\installed",           # Standard location
+          "vcpkg_installed",           # Alternative location
+          "$env:VCPKG_DEFAULT_BINARY_CACHE",  # Custom cache location
+          "installed"                  # Local installed directory
+        )
+
+        foreach ($path in $possibleInstalledPaths) {
+          Write-Host "Checking for installed packages at: $path" -ForegroundColor Gray
+          if (Test-Path $path) {
+            $installedPath = $path
+            Write-Host "Found installed packages at: $installedPath" -ForegroundColor Green
+
+            # Show contents of the installed directory
+            Write-Host "Contents of $installedPath directory:" -ForegroundColor Yellow
+            $installedContents = Get-ChildItem -Path $installedPath -Name -ErrorAction SilentlyContinue
+            if ($installedContents) {
+              $installedContents | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            } else {
+              Write-Host "  (empty)" -ForegroundColor Gray
+            }
+            break
           }
-          exit 1
         }
 
-        Write-Host "Contents of installed directory:" -ForegroundColor Yellow
-        $installedContents = Get-ChildItem -Path $installedPath -Name -ErrorAction SilentlyContinue
-        if ($installedContents) {
-          $installedContents | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
-        } else {
-          Write-Host "  (empty)" -ForegroundColor Gray
+        # If still not found, check vcpkg list to see what's actually installed
+        if (!$installedPath) {
+          Write-Host "Standard installed directory not found, checking vcpkg list..." -ForegroundColor Yellow
+          try {
+            $listOutput = & $vcpkgExePath list
+            Write-Host "Installed packages (via vcpkg list):" -ForegroundColor Yellow
+            Write-Host $listOutput -ForegroundColor Gray
+          } catch {
+            Write-Host "Could not run vcpkg list: $($_.Exception.Message)" -ForegroundColor Red
+          }
+
+          # Check vcpkg environment information
+          Write-Host "Checking vcpkg environment information..." -ForegroundColor Yellow
+          try {
+            $envOutput = & $vcpkgExePath env
+            Write-Host "VCPKG environment info:" -ForegroundColor Yellow
+            Write-Host $envOutput -ForegroundColor Gray
+          } catch {
+            Write-Host "Could not run vcpkg env: $($_.Exception.Message)" -ForegroundColor Red
+          }
+
+          # Check all possible locations for installed packages
+          Write-Host "Searching for any directory containing installed packages..." -ForegroundColor Yellow
+          $possibleLocations = @(
+            ".",
+            "vcpkg",
+            "$env:VCPKG_ROOT"
+          )
+
+          foreach ($location in $possibleLocations) {
+            if (Test-Path $location) {
+              Write-Host "Searching in: $location" -ForegroundColor Gray
+              $searchResults = Get-ChildItem -Path $location -Name -ErrorAction SilentlyContinue | Where-Object {
+                $_ -like "*installed*" -or $_ -like "*packages*"
+              }
+              if ($searchResults) {
+                $searchResults | ForEach-Object {
+                  $fullPath = Join-Path $location $_
+                  Write-Host "Found possible package location: $fullPath" -ForegroundColor Cyan
+                  if (Test-Path $fullPath -PathType Container) {
+                    $contents = Get-ChildItem -Path $fullPath -Name -ErrorAction SilentlyContinue
+                    if ($contents) {
+                      Write-Host "  Contents: $($contents -join ', ')" -ForegroundColor Gray
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          Write-Host "ERROR: No installed packages directory found in any expected location" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Yellow
+          exit 1
         }
 
         $triplets = @("x64-windows", "x86-windows", "arm64-windows")
