@@ -109,6 +109,7 @@ jobs:
       vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
       cmake-version: ${{ steps.setup-cmake.outputs.cmake-version }}
       setup-duration: ${{ steps.setup-complete.outputs.duration }}
+      setup-time: ${{ steps.setup-complete.outputs.setup-time }}
 
     steps:
     - name: Checkout code
@@ -389,9 +390,42 @@ jobs:
     - name: Complete setup
       id: setup-complete
       run: |
-        $setupTime = (Get-Date).ToString("o")
+        Write-Host "=== Completing environment setup ===" -ForegroundColor Green
+
+        # 환경 검증
+        $vcpkgRoot = "${{ steps.setup-vcpkg.outputs.vcpkg-root }}"
+        $vcpkgExePath = Join-Path $vcpkgRoot "vcpkg.exe"
+
+        if (!(Test-Path $vcpkgExePath)) {
+          Write-Host "ERROR: vcpkg.exe not found at expected location: $vcpkgExePath" -ForegroundColor Red
+          exit 1
+        }
+
+        if (!(Test-Path "vcpkg")) {
+          Write-Host "ERROR: vcpkg directory not found" -ForegroundColor Red
+          exit 1
+        }
+
+        # 설정 완료 시간 기록
+        $setupStartTime = Get-Date
+        $setupTime = $setupStartTime.ToString("o")
+        $duration = [math]::Round((Get-Date - $setupStartTime).TotalSeconds, 2)
+
         echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
-        Write-Host "Environment setup completed at $setupTime" -ForegroundColor Green
+        echo "duration=$duration" >> $env:GITHUB_OUTPUT
+
+        Write-Host "Environment setup completed successfully" -ForegroundColor Green
+        Write-Host "vcpkg root: $vcpkgRoot" -ForegroundColor Cyan
+        Write-Host "vcpkg executable: $vcpkgExePath" -ForegroundColor Cyan
+        Write-Host "Total setup duration: $duration seconds" -ForegroundColor Cyan
+
+        # 최종 상태 확인
+        Write-Host "Setup verification:" -ForegroundColor Cyan
+        Write-Host "  ✓ vcpkg available: $(Test-Path $vcpkgExePath)" -ForegroundColor Green
+        Write-Host "  ✓ CMake available: $(Get-Command cmake -ErrorAction SilentlyContinue)" -ForegroundColor Green
+        Write-Host "  ✓ Ninja available: $(Get-Command ninja -ErrorAction SilentlyContinue)" -ForegroundColor Green
+
+        Write-Host "Environment setup completed successfully!" -ForegroundColor Green
 
   # Universal Manager 빌드 (x64 + ARM64 지원)
   build-manager:
