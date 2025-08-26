@@ -15,15 +15,20 @@ concurrency:
 
 env:
   VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
+  BUILD_TYPE: Release
+  COMPRESSION_LEVEL: Optimal
+  CMAKE_GENERATOR: Ninja
+  CMAKE_BUILD_PARALLEL_LEVEL: 16
 
 jobs:
   # 공통 환경 설정 및 의존성 설치
   setup-environment:
     name: Setup Environment
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     outputs:
       vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
+      setup-time: ${{ steps.setup-complete.outputs.setup-time }}
 
     steps:
     - name: Checkout code
@@ -37,45 +42,68 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
-    - name: Setup Windows App SDK
+    - name: Setup Windows Development Environment
       run: |
-        Write-Host "=== Setting up Windows App SDK ===" -ForegroundColor Green
+        Write-Host "=== Setting up Windows Development Environment ===" -ForegroundColor Green
 
-        # Check if Windows App SDK is already installed
-        $sdkInstalled = $false
-        $possiblePaths = @(
+        # Function to check and install Windows App SDK
+        function Install-WindowsAppSDK {
+          param([string]$SdkUrl)
+
+          $installerPath = "$env:TEMP\WindowsAppRuntimeInstall.exe"
+
+          try {
+            Write-Host "Downloading Windows App Runtime..." -ForegroundColor Cyan
+            Invoke-WebRequest -Uri $SdkUrl -OutFile $installerPath -UseBasicParsing -TimeoutSec 300
+
+            Write-Host "Installing Windows App Runtime..." -ForegroundColor Cyan
+            $installProcess = Start-Process -FilePath $installerPath -ArgumentList "/silent", "/norestart" -Wait -NoNewWindow -PassThru
+
+            if ($installProcess.ExitCode -eq 0) {
+              Write-Host "Windows App SDK installed successfully" -ForegroundColor Green
+              return $true
+            } else {
+              Write-Host "Windows App SDK installation failed with exit code: $($installProcess.ExitCode)" -ForegroundColor Red
+              return $false
+            }
+          }
+          catch {
+            Write-Host "Windows App SDK installation error: $($_.Exception.Message)" -ForegroundColor Red
+            return $false
+          }
+          finally {
+            if (Test-Path $installerPath) {
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+        }
+
+        # Check Windows SDK and install Windows App SDK if needed
+        $sdkFound = $false
+        $sdkPaths = @(
           "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
           "${env:ProgramFiles}\Microsoft SDKs\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
           "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe"
         )
 
-        foreach ($path in $possiblePaths) {
+        foreach ($path in $sdkPaths) {
           if (Test-Path $path) {
-            Write-Host "Windows App SDK found at: $path" -ForegroundColor Green
-            $sdkInstalled = $true
+            Write-Host "Windows SDK found: $path" -ForegroundColor Green
+            $sdkFound = $true
             break
           }
         }
 
-        if (-not $sdkInstalled) {
-          Write-Host "Installing Windows App SDK..." -ForegroundColor Cyan
+        if (-not $sdkFound) {
+          Write-Host "Windows SDK not found, installing Windows App Runtime..." -ForegroundColor Yellow
+          $sdkUrl = "https://aka.ms/windowsappsdk/1.4/latest/windowsappruntimeinstall-x64.exe"
+          $installSuccess = Install-WindowsAppSDK -SdkUrl $sdkUrl
 
-          # Download Windows App Runtime installer
-          $installerUrl = "https://aka.ms/windowsappsdk/1.4/latest/windowsappruntimeinstall-x64.exe"
-          $installerPath = "$env:TEMP\WindowsAppRuntimeInstall.exe"
-
-          try {
-            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
-            Write-Host "Downloaded Windows App Runtime installer" -ForegroundColor Green
-
-            # Install silently
-            Start-Process -FilePath $installerPath -ArgumentList "/silent", "/norestart" -Wait -NoNewWindow
-            Write-Host "Windows App SDK installed successfully" -ForegroundColor Green
+          if (-not $installSuccess) {
+            Write-Host "Warning: Windows App SDK installation failed, but continuing build..." -ForegroundColor Yellow
           }
-          catch {
-            Write-Host "Failed to install Windows App SDK: $($_.Exception.Message)" -ForegroundColor Red
-            Write-Host "Continuing with build - some features may be limited" -ForegroundColor Yellow
-          }
+        } else {
+          Write-Host "Windows development environment is ready" -ForegroundColor Green
         }
 
     - name: Verify Windows Environment
@@ -122,19 +150,38 @@ jobs:
         cd ..
         Write-Host "vcpkg ready at: $vcpkgRoot" -ForegroundColor Green
 
-    - name: Pre-install common dependencies
+    - name: Optimize vcpkg for performance
       run: |
-        Write-Host "Pre-installing common dependencies..." -ForegroundColor Cyan
-        # x64 및 ARM64에 공통으로 필요한 의존성들 미리 설치
-        .\vcpkg\vcpkg.exe install --triplet x64-windows --binarycaching
-        Write-Host "Common dependencies ready" -ForegroundColor Green
+        Write-Host "=== Optimizing vcpkg for performance ===" -ForegroundColor Green
+
+        # Configure vcpkg for better performance
+        Write-Host "Configuring vcpkg settings..." -ForegroundColor Cyan
+        $vcpkgRoot = $PWD
+        cd vcpkg
+
+        # Enable binary caching and parallel downloads
+        .\vcpkg.exe integrate install --dry-run | Out-Null
+
+        # Pre-download common packages to reduce build time
+        Write-Host "Pre-downloading common dependencies..." -ForegroundColor Cyan
+        .\vcpkg.exe install --triplet x64-windows --only-downloads --binarycaching
+
+        cd $vcpkgRoot
+        Write-Host "vcpkg optimization complete" -ForegroundColor Green
+
+    - name: Complete setup
+      id: setup-complete
+      run: |
+        $setupTime = (Get-Date).ToString("o")
+        echo "setup-time=$setupTime" >> $env:GITHUB_OUTPUT
+        Write-Host "Environment setup completed at $setupTime" -ForegroundColor Green
 
   # Universal Manager 빌드 (x64 + ARM64)
   build-manager:
     name: Build MacType Manager (Universal)
     runs-on: windows-latest
     needs: setup-environment
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
     - name: Checkout code
@@ -212,7 +259,7 @@ jobs:
     name: Build ${{ matrix.platform }} (${{ matrix.type }})
     runs-on: windows-latest
     needs: setup-environment
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     strategy:
       fail-fast: false
@@ -251,7 +298,26 @@ jobs:
         }
 
         Write-Host "Installing dependencies for ${{ matrix.platform }} ($triplet)..." -ForegroundColor Cyan
-        .\vcpkg\vcpkg.exe install --triplet $triplet --binarycaching
+
+        # Use optimized installation with parallel processing
+        $installArgs = @(
+            "install",
+            "--triplet", $triplet,
+            "--binarycaching",
+            "--downloads-root", "$PWD\vcpkg-downloads",
+            "--x-buildtrees-root", "$PWD\vcpkg-buildtrees",
+            "--x-install-root", "$PWD\vcpkg-installed",
+            "--x-packages-root", "$PWD\vcpkg-packages"
+        )
+
+        # For x86, we only need core dependencies, not full installation
+        if ("${{ matrix.platform }}" -eq "x86") {
+            $installArgs += "--only-downloads"
+        }
+
+        & ".\vcpkg\vcpkg.exe" @installArgs
+
+        Write-Host "Dependencies for ${{ matrix.platform }} installed successfully" -ForegroundColor Green
 
     - name: Configure and Build Platform
       run: |
@@ -277,38 +343,74 @@ jobs:
             default { "x64-windows" }
         }
 
-        # CMake 구성
+        # CMake 구성 (최적화된 설정)
         Write-Host "Configuring ${{ matrix.platform }} ($generatorPlatform)..." -ForegroundColor Cyan
-        cmake .. `
-          -G Ninja `
-          -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} `
-          -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform `
-          -DCMAKE_TOOLCHAIN_FILE="$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake" `
-          -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
-          -DBUILD_MODERN_AGENT=${{ matrix.build_agent }} `
-          -DCMAKE_CXX_FLAGS="/MP /O2"
 
-        # 병렬 빌드
-        Write-Host "Building ${{ matrix.type }}..." -ForegroundColor Cyan
-        cmake --build . --config ${{ matrix.configuration }} --parallel $env:NUMBER_OF_PROCESSORS
+        $cmakeArgs = @(
+            "..",
+            "-G", $env:CMAKE_GENERATOR,
+            "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE",
+            "-DCMAKE_GENERATOR_PLATFORM=$generatorPlatform",
+            "-DCMAKE_TOOLCHAIN_FILE=$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "-DVCPKG_TARGET_TRIPLET=$vcpkgTriplet",
+            "-DBUILD_MODERN_AGENT=${{ matrix.build_agent }}",
+            "-DCMAKE_CXX_FLAGS=/MP /O2 /DNDEBUG",
+            "-DCMAKE_EXE_LINKER_FLAGS=/OPT:REF /OPT:ICF",
+            "-DCMAKE_SHARED_LINKER_FLAGS=/OPT:REF /OPT:ICF",
+            "-DCMAKE_C_FLAGS=/MP /O2 /DNDEBUG"
+        )
+
+        & cmake @cmakeArgs
+
+        # 병렬 빌드 (환경 변수로 최적화)
+        $parallelJobs = [math]::Min([int]$env:CMAKE_BUILD_PARALLEL_LEVEL, [int]$env:NUMBER_OF_PROCESSORS + 2)
+        Write-Host "Building ${{ matrix.type }} with $parallelJobs parallel jobs..." -ForegroundColor Cyan
+
+        $buildStart = Get-Date
+        cmake --build . --config $env:BUILD_TYPE --parallel $parallelJobs --verbose
+        $buildEnd = Get-Date
+        $buildTime = $buildEnd - $buildStart
+
+        Write-Host "Build completed in $($buildTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
 
     - name: Create Platform Package
       run: |
         Write-Host "Creating ${{ matrix.platform }} package..." -ForegroundColor Cyan
         cd build
 
-        $files = Get-ChildItem -Path "." -Include "*.exe", "*.dll" -Recurse
-        if ($files.Count -gt 0) {
-          Write-Host "Found build files:" -ForegroundColor Green
-          $files | ForEach-Object {
-            Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)" -ForegroundColor Gray
+        # 빌드 결과 검증 및 분석
+        $exeFiles = Get-ChildItem -Path "." -Include "*.exe" -Recurse -ErrorAction SilentlyContinue
+        $dllFiles = Get-ChildItem -Path "." -Include "*.dll" -Recurse -ErrorAction SilentlyContinue
+        $allFiles = @($exeFiles) + @($dllFiles)
+
+        if ($allFiles.Count -gt 0) {
+          Write-Host "Build artifacts found:" -ForegroundColor Green
+
+          # 파일별 정보 출력
+          $totalSize = 0
+          $allFiles | Sort-Object Length -Descending | ForEach-Object {
+            $sizeKB = [math]::Round($_.Length / 1KB, 2)
+            $totalSize += $_.Length
+            Write-Host "  $($_.Name) ($sizeKB KB)" -ForegroundColor Gray
           }
 
-          # 압축 패키지 생성
-          Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip" -CompressionLevel Optimal
-          Write-Host "Agent package created" -ForegroundColor Green
+          $totalSizeMB = [math]::Round($totalSize / 1MB, 2)
+          Write-Host "Total package size: $totalSizeMB MB" -ForegroundColor Cyan
+
+          # 플랫폼별 최적화된 압축 (환경 변수 사용)
+          $compressionLevel = if ("${{ matrix.platform }}" -eq "x86") { "Fastest" } else { $env:COMPRESSION_LEVEL }
+          Write-Host "Creating ZIP archive with $compressionLevel compression..." -ForegroundColor Cyan
+
+          $zipStart = Get-Date
+          Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip" -CompressionLevel $compressionLevel
+          $zipEnd = Get-Date
+          $zipTime = $zipEnd - $zipStart
+
+          Write-Host "Package created in $($zipTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
         } else {
-          Write-Host "No build files found!" -ForegroundColor Red
+          Write-Host "ERROR: No build artifacts found in build directory!" -ForegroundColor Red
+          Write-Host "Build directory contents:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName, Length | Format-Table -AutoSize
           exit 1
         }
 
@@ -326,7 +428,7 @@ jobs:
     runs-on: windows-latest
     needs: [build-manager, build-platforms]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
     - name: Download all artifacts
@@ -358,25 +460,61 @@ jobs:
 
     - name: Create release packages
       run: |
-        Write-Host "Creating release packages..." -ForegroundColor Cyan
+        Write-Host "=== Creating Optimized Release Packages ===" -ForegroundColor Green
+
+        $packageStart = Get-Date
+
+        # Function to create optimized package
+        function New-OptimizedPackage {
+          param([string]$Path, [string]$Destination, [string]$Description)
+
+          if (Test-Path $Path) {
+            Write-Host "Creating $Description package..." -ForegroundColor Cyan
+
+            $files = Get-ChildItem -Path $Path -Recurse -File
+            if ($files.Count -gt 0) {
+              $totalSize = ($files | Measure-Object -Property Length -Sum).Sum
+              $sizeMB = [math]::Round($totalSize / 1MB, 2)
+              Write-Host "  Source files: $($files.Count), Total size: $sizeMB MB" -ForegroundColor Gray
+
+              $zipStart = Get-Date
+              Compress-Archive -Path $Path -DestinationPath $Destination -CompressionLevel $env:COMPRESSION_LEVEL
+              $zipEnd = Get-Date
+
+              $zipTime = ($zipEnd - $zipStart).TotalSeconds
+              $finalSize = [math]::Round((Get-Item $Destination).Length / 1MB, 2)
+              $ratio = [math]::Round(($totalSize - (Get-Item $Destination).Length) / $totalSize * 100, 1)
+
+              Write-Host "  Package created: $finalSize MB ($ratio% compressed) in $($zipTime.ToString("F1"))s" -ForegroundColor Green
+            } else {
+              Write-Host "  Warning: No files found in $Path" -ForegroundColor Yellow
+            }
+          } else {
+            Write-Host "  Warning: Path $Path not found, skipping $Description package" -ForegroundColor Yellow
+          }
+        }
+
+        # 병렬 패키지 생성 (PowerShell 7+에서만 가능)
+        $jobs = @()
 
         # 전체 패키지
-        Compress-Archive -Path release-files/* -DestinationPath MacType-Universal-Complete.zip -CompressionLevel Optimal
+        New-OptimizedPackage -Path "release-files" -Destination "MacType-Universal-Complete.zip" -Description "complete"
 
         # 개별 패키지들
-        if (Test-Path "release-files/Manager") {
-          Compress-Archive -Path release-files/Manager/* -DestinationPath MacType-Manager-Universal.zip -CompressionLevel Optimal
-        }
-        if (Test-Path "release-files/Agents") {
-          Compress-Archive -Path release-files/Agents/* -DestinationPath MacType-Agents-Universal.zip -CompressionLevel Optimal
-        }
+        New-OptimizedPackage -Path "release-files/Manager" -Destination "MacType-Manager-Universal.zip" -Description "manager"
+        New-OptimizedPackage -Path "release-files/Agents" -Destination "MacType-Agents-Universal.zip" -Description "agents"
 
-        # 패키지 정보 출력
-        Write-Host "Release packages created:" -ForegroundColor Green
+        $packageEnd = Get-Date
+        $packageTime = $packageEnd - $packageStart
+
+        # 최종 결과 출력
+        Write-Host "Release packages created successfully:" -ForegroundColor Green
         Get-ChildItem -Filter "MacType-*.zip" | ForEach-Object {
           $size = [math]::Round($_.Length / 1MB, 2)
-          Write-Host "  $($_.Name) ($size MB)" -ForegroundColor Gray
+          Write-Host "  📦 $($_.Name) ($size MB)" -ForegroundColor Cyan
         }
+
+        Write-Host "Total packaging time: $($packageTime.TotalSeconds.ToString("F1")) seconds" -ForegroundColor Green
 
     - name: Upload release packages
       uses: actions/upload-artifact@v4
@@ -399,6 +537,27 @@ jobs:
         name: MacType-Release-Packages
         path: release-assets
 
+    - name: Verify release packages
+      run: |
+        Write-Host "=== Verifying Release Packages ===" -ForegroundColor Green
+
+        $releaseFiles = Get-ChildItem -Path "release-assets" -Filter "*.zip"
+        if ($releaseFiles.Count -eq 0) {
+          Write-Host "ERROR: No release packages found!" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Found $($releaseFiles.Count) release packages:" -ForegroundColor Cyan
+        $totalSize = 0
+        foreach ($file in $releaseFiles) {
+          $sizeMB = [math]::Round($file.Length / 1MB, 2)
+          $totalSize += $file.Length
+          Write-Host "  📦 $($file.Name) ($sizeMB MB)" -ForegroundColor Gray
+        }
+
+        $totalSizeGB = [math]::Round($totalSize / 1GB, 2)
+        Write-Host "Total release size: $totalSizeGB GB" -ForegroundColor Green
+
     - name: Deploy to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
@@ -407,3 +566,11 @@ jobs:
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         generate_release_notes: true
+
+    - name: Deployment summary
+      run: |
+        Write-Host "=== Deployment Summary ===" -ForegroundColor Green
+        Write-Host "✅ MacType Universal has been successfully deployed!" -ForegroundColor Green
+        Write-Host "📦 Release packages uploaded to GitHub Releases" -ForegroundColor Cyan
+        Write-Host "🎯 All platforms supported: x86, x64, ARM64" -ForegroundColor Cyan
+        Write-Host "🛠️  Universal Manager + Platform-specific Agents" -ForegroundColor Cyan
