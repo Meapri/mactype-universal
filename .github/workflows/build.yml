@@ -17,10 +17,13 @@ env:
   VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
 
 jobs:
-  build-manager:
-    name: Build MacType Manager (Universal App)
+  # 공통 환경 설정 및 의존성 설치
+  setup-environment:
+    name: Setup Environment
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
+    outputs:
+      vcpkg-root: ${{ steps.setup-vcpkg.outputs.vcpkg-root }}
 
     steps:
     - name: Checkout code
@@ -34,52 +37,18 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
-    - name: Setup Windows App SDK
+    - name: Verify Windows Environment
       run: |
-        Write-Host "Checking Windows App SDK availability..." -ForegroundColor Green
+        Write-Host "=== Windows Environment Verification ===" -ForegroundColor Green
+        Write-Host "Available CPU cores: $env:NUMBER_OF_PROCESSORS" -ForegroundColor Cyan
 
-        # Check multiple possible locations for Windows App SDK
-        $possiblePaths = @(
-          "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
-          "${env:ProgramFiles}\Microsoft SDKs\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
-          "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe"
-        )
-
-        $sdkFound = $false
-        foreach ($path in $possiblePaths) {
-          if (Test-Path $path) {
-            Write-Host "Windows App SDK found at: $path" -ForegroundColor Green
-            $sdkFound = $true
-            break
-          }
-        }
-
-        if (-not $sdkFound) {
-          Write-Host "Windows App SDK not found in standard locations" -ForegroundColor Yellow
-          Write-Host "This may be okay - GitHub Actions Windows images often have it available" -ForegroundColor Yellow
-
-          # List available Windows SDK versions
-          $sdkBasePath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
-          if (Test-Path $sdkBasePath) {
-            Write-Host "Available SDK versions:" -ForegroundColor Cyan
-            Get-ChildItem $sdkBasePath -Directory | ForEach-Object {
-              Write-Host "  $($_.Name)" -ForegroundColor Gray
-            }
-          }
-        }
-
-        # Continue with build regardless - CMake will handle missing dependencies
-        Write-Host "Continuing with build process..." -ForegroundColor Green
-
-    - name: Verify Windows SDK
-      run: |
-        Write-Host "=== Verifying Windows SDK installation ===" -ForegroundColor Green
+        # Windows SDK 버전 확인
         $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue
         if ($sdkVersions) {
           $latestSdk = $sdkVersions | Sort-Object Name -Descending | Select-Object -First 1
-          Write-Host "Windows SDK found: $($latestSdk.Name)" -ForegroundColor Green
+          Write-Host "Windows SDK: $($latestSdk.Name)" -ForegroundColor Green
         } else {
-          Write-Host "No Windows SDK found" -ForegroundColor Yellow
+          Write-Host "Windows SDK: Not found" -ForegroundColor Yellow
         }
 
     - name: Cache vcpkg
@@ -94,37 +63,62 @@ jobs:
           vcpkg-
 
     - name: Setup vcpkg
+      id: setup-vcpkg
       run: |
         if (!(Test-Path "vcpkg")) {
+          Write-Host "Cloning vcpkg..." -ForegroundColor Cyan
           git clone https://github.com/Microsoft/vcpkg.git --depth 1
           cd vcpkg
           .\bootstrap-vcpkg.bat -disableMetrics
         } else {
+          Write-Host "Using cached vcpkg..." -ForegroundColor Cyan
           cd vcpkg
         }
-        echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
-        echo "$PWD" >> $env:GITHUB_PATH
+        $vcpkgRoot = $PWD
+        echo "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+        echo "$vcpkgRoot" >> $env:GITHUB_PATH
+        echo "vcpkg-root=$vcpkgRoot" >> $env:GITHUB_OUTPUT
         cd ..
+        Write-Host "vcpkg ready at: $vcpkgRoot" -ForegroundColor Green
 
-    - name: Install dependencies via vcpkg
+    - name: Pre-install common dependencies
       run: |
-        Write-Host "Installing dependencies for Universal App..." -ForegroundColor Cyan
-
-        # Universal app의 경우 x64 triplet 사용 (Windows가 자동으로 적절한 아키텍처 선택)
+        Write-Host "Pre-installing common dependencies..." -ForegroundColor Cyan
+        # x64 및 ARM64에 공통으로 필요한 의존성들 미리 설치
         .\vcpkg\vcpkg.exe install --triplet x64-windows --binarycaching
+        Write-Host "Common dependencies ready" -ForegroundColor Green
 
-        Write-Host "Dependencies installed successfully" -ForegroundColor Green
+  # Universal Manager 빌드 (x64 + ARM64)
+  build-manager:
+    name: Build MacType Manager (Universal)
+    runs-on: windows-latest
+    needs: setup-environment
+    timeout-minutes: 25
 
-    - name: Configure and Build Universal App
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Restore environment
       run: |
+        Write-Host "Restoring build environment..." -ForegroundColor Cyan
+        echo "VCPKG_ROOT=${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_ENV
+        echo "${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_PATH
+
+    - name: Configure and Build Universal Manager
+      run: |
+        Write-Host "=== Building Universal MacType Manager ===" -ForegroundColor Green
+
         if (Test-Path "build-manager") {
           Remove-Item -Recurse -Force build-manager
         }
         mkdir build-manager
         cd build-manager
 
-        # Universal App 구성
-        Write-Host "Configuring Universal App (x64 + ARM64)..." -ForegroundColor Cyan
+        # Universal Windows App 구성 (단순화)
+        Write-Host "Configuring Universal App..." -ForegroundColor Cyan
         cmake .. `
           -G Ninja `
           -DCMAKE_BUILD_TYPE=Release `
@@ -137,196 +131,135 @@ jobs:
           -DCMAKE_SYSTEM_VERSION=10.0
 
         # 병렬 빌드
-        Write-Host "Building Universal App..." -ForegroundColor Cyan
+        Write-Host "Building Universal Manager..." -ForegroundColor Cyan
         cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
 
-    - name: Create Universal App Package
+    - name: Create Universal Manager Package
       run: |
+        Write-Host "Creating Universal Manager package..." -ForegroundColor Cyan
         cd build-manager
 
-        # MSIX 패키지 생성을 위한 추가 구성
-        Write-Host "Creating Universal App Package..." -ForegroundColor Cyan
+        # 실행 파일 확인 및 패키징
+        $exeFiles = Get-ChildItem -Path "." -Filter "*.exe" -Recurse
+        if ($exeFiles.Count -gt 0) {
+          Write-Host "Found executable files:" -ForegroundColor Green
+          $exeFiles | ForEach-Object {
+            Write-Host "  $($_.FullName)" -ForegroundColor Gray
+          }
 
-        # 앱 패키지 생성 (개발용 sideload)
-        if (Test-Path "MacTypeManager.exe") {
-          # Universal Windows Platform 앱으로 패키징
-          Write-Host "MacTypeManager.exe found, creating MSIX package..." -ForegroundColor Green
-
-          # 간단한 ZIP 아카이브로 패키징 (실제 MSIX는 별도 도구 필요)
-          Compress-Archive -Path "MacTypeManager.exe" -DestinationPath "../MacTypeManager-Universal.zip" -CompressionLevel Optimal
+          # ZIP 패키지 생성
+          Compress-Archive -Path "*.exe", "*.dll", "*.pri", "*.appx" -DestinationPath "../MacTypeManager-Universal.zip" -CompressionLevel Optimal
+          Write-Host "Universal Manager package created" -ForegroundColor Green
+        } else {
+          Write-Host "No executable files found!" -ForegroundColor Red
+          exit 1
         }
 
-    - name: Upload Universal App
+    - name: Upload Universal Manager
       uses: actions/upload-artifact@v4
       with:
         name: MacTypeManager-Universal
         path: |
           MacTypeManager-Universal.zip
-          build-manager/MacTypeManager.*
+          build-manager/*.exe
+          build-manager/*.dll
         retention-days: 30
         if-no-files-found: error
 
+  # 플랫폼별 Agent 빌드 (x64, ARM64만)
   build-agents:
     name: Build Agents ${{ matrix.platform }}
     runs-on: windows-latest
-    timeout-minutes: 30
+    needs: setup-environment
+    timeout-minutes: 20
 
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64, ARM64]
+        platform: [x64, ARM64]  # x86 제외 (이전 결정에 따라)
         configuration: [Release]
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 1  # 히스토리 최소화로 속도 향상
+        fetch-depth: 1
 
-    - name: Setup CMake
-      uses: lukka/get-cmake@latest
-
-    - name: Setup Ninja
-      uses: seanmiddleditch/gha-setup-ninja@master
-
-    - name: Setup Windows App SDK
+    - name: Restore environment
       run: |
-        Write-Host "Checking Windows App SDK availability..." -ForegroundColor Green
+        Write-Host "Restoring build environment..." -ForegroundColor Cyan
+        echo "VCPKG_ROOT=${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_ENV
+        echo "${{ needs.setup-environment.outputs.vcpkg-root }}" >> $env:GITHUB_PATH
 
-        # Check multiple possible locations for Windows App SDK
-        $possiblePaths = @(
-          "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
-          "${env:ProgramFiles}\Microsoft SDKs\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe",
-          "C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe"
-        )
-
-        $sdkFound = $false
-        foreach ($path in $possiblePaths) {
-          if (Test-Path $path) {
-            Write-Host "Windows App SDK found at: $path" -ForegroundColor Green
-            $sdkFound = $true
-            break
-          }
-        }
-
-        if (-not $sdkFound) {
-          Write-Host "Windows App SDK not found in standard locations" -ForegroundColor Yellow
-          Write-Host "This may be okay - GitHub Actions Windows images often have it available" -ForegroundColor Yellow
-
-          # List available Windows SDK versions
-          $sdkBasePath = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
-          if (Test-Path $sdkBasePath) {
-            Write-Host "Available SDK versions:" -ForegroundColor Cyan
-            Get-ChildItem $sdkBasePath -Directory | ForEach-Object {
-              Write-Host "  $($_.Name)" -ForegroundColor Gray
-            }
-          }
-        }
-
-        # Continue with build regardless - CMake will handle missing dependencies
-        Write-Host "Continuing with build process..." -ForegroundColor Green
-
-    - name: Verify Windows SDK
-      run: |
-        Write-Host "=== Verifying Windows SDK installation ===" -ForegroundColor Green
-        $sdkVersions = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include\" -Directory -ErrorAction SilentlyContinue
-        if ($sdkVersions) {
-          $latestSdk = $sdkVersions | Sort-Object Name -Descending | Select-Object -First 1
-          Write-Host "Windows SDK found: $($latestSdk.Name)" -ForegroundColor Green
-        } else {
-          Write-Host "No Windows SDK found" -ForegroundColor Yellow
-        }
-
-    - name: Cache vcpkg
-      uses: actions/cache@v4
-      with:
-        path: |
-          vcpkg
-          vcpkg/installed
-        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
-        restore-keys: |
-          vcpkg-${{ runner.os }}-
-          vcpkg-
-
-    - name: Setup vcpkg
-      run: |
-        if (!(Test-Path "vcpkg")) {
-          git clone https://github.com/Microsoft/vcpkg.git --depth 1
-          cd vcpkg
-          .\bootstrap-vcpkg.bat -disableMetrics
-        } else {
-          cd vcpkg
-        }
-        echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
-        echo "$PWD" >> $env:GITHUB_PATH
-        cd ..
-
-    - name: Install dependencies via vcpkg
+    - name: Install platform-specific dependencies
       run: |
         $triplet = switch ("${{ matrix.platform }}") {
             "x64" { "x64-windows" }
-            "x86" { "x86-windows" }
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
 
-        Write-Host "Installing dependencies for $triplet..." -ForegroundColor Cyan
+        Write-Host "Installing dependencies for ${{ matrix.platform }} ($triplet)..." -ForegroundColor Cyan
+        .\vcpkg\vcpkg.exe install --triplet $triplet --binarycaching --only-downloads
 
-        # 병렬 설치 및 캐시 활용
-        .\vcpkg\vcpkg.exe install --triplet $triplet --binarycaching
-
-        Write-Host "Dependencies installed successfully" -ForegroundColor Green
-
-    - name: Configure and Build
+    - name: Configure and Build Agent
       run: |
+        Write-Host "=== Building MacType Agent for ${{ matrix.platform }} ===" -ForegroundColor Green
+
         if (Test-Path "build") {
           Remove-Item -Recurse -Force build
         }
         mkdir build
         cd build
 
-        # 플랫폼별 설정
+        # 플랫폼별 설정 (단순화)
         $generatorPlatform = switch ("${{ matrix.platform }}") {
             "x64" { "x64" }
-            "x86" { "Win32" }
             "ARM64" { "ARM64" }
             default { "x64" }
         }
         $vcpkgTriplet = switch ("${{ matrix.platform }}") {
             "x64" { "x64-windows" }
-            "x86" { "x86-windows" }
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
-        $buildAgentFlag = switch ("${{ matrix.platform }}") {
-            "x86" { "OFF" }
-            "x64" { "ON" }
-            "ARM64" { "ON" }
-            default { "ON" }
-        }
 
-        # 최적화된 CMake 구성
-        Write-Host "Configuring CMake for $generatorPlatform..." -ForegroundColor Cyan
+        # CMake 구성
+        Write-Host "Configuring for $generatorPlatform..." -ForegroundColor Cyan
         cmake .. `
           -G Ninja `
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} `
           -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform `
           -DCMAKE_TOOLCHAIN_FILE="$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake" `
           -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
-          -DBUILD_MODERN_AGENT=$buildAgentFlag `
-          -DCMAKE_CXX_FLAGS="/MP /O2"  # 병렬 컴파일 및 최적화
+          -DBUILD_MODERN_AGENT=ON `
+          -DCMAKE_CXX_FLAGS="/MP /O2"
 
         # 병렬 빌드
-        Write-Host "Building with Ninja (parallel: $env:NUMBER_OF_PROCESSORS cores)..." -ForegroundColor Cyan
+        Write-Host "Building Agent..." -ForegroundColor Cyan
         cmake --build . --config ${{ matrix.configuration }} --parallel $env:NUMBER_OF_PROCESSORS
 
-    - name: Create artifact archive
+    - name: Create Agent Package
       run: |
+        Write-Host "Creating Agent package..." -ForegroundColor Cyan
         cd build
-        Write-Host "Creating compressed artifact archive..." -ForegroundColor Cyan
-        Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip" -CompressionLevel Optimal
 
-    - name: Upload build artifacts
+        $files = Get-ChildItem -Path "." -Include "*.exe", "*.dll" -Recurse
+        if ($files.Count -gt 0) {
+          Write-Host "Found build files:" -ForegroundColor Green
+          $files | ForEach-Object {
+            Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)" -ForegroundColor Gray
+          }
+
+          # 압축 패키지 생성
+          Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip" -CompressionLevel Optimal
+          Write-Host "Agent package created" -ForegroundColor Green
+        } else {
+          Write-Host "No build files found!" -ForegroundColor Red
+          exit 1
+        }
+
+    - name: Upload Agent Build
       uses: actions/upload-artifact@v4
       with:
         name: MacType-${{ matrix.platform }}-${{ matrix.configuration }}
@@ -334,22 +267,13 @@ jobs:
         retention-days: 30
         if-no-files-found: error
 
-    - name: List build results
-      run: |
-        Write-Host "Build completed successfully!" -ForegroundColor Green
-        Write-Host "Generated files:" -ForegroundColor Cyan
-        Get-ChildItem -Path build -Include *.exe, *.dll -Recurse | ForEach-Object {
-          Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)"
-        }
-
-  # Installer creation removed - not implemented yet
-
-  create-universal-release:
-    name: Create Universal Release
+  # 릴리스 패키지 생성 및 배포
+  create-release:
+    name: Create Release Packages
     runs-on: windows-latest
     needs: [build-manager, build-agents]
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
     - name: Download all artifacts
@@ -357,66 +281,72 @@ jobs:
       with:
         path: artifacts
 
-    - name: Extract and organize files
+    - name: Organize and package release files
       run: |
-        Write-Host "Organizing Universal release files..." -ForegroundColor Cyan
+        Write-Host "=== Creating Release Packages ===" -ForegroundColor Green
         mkdir release-files
 
-        # Extract Universal Manager
+        # Universal Manager 추출
+        Write-Host "Extracting Universal Manager..." -ForegroundColor Cyan
         if (Test-Path "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip") {
           Expand-Archive -Path "artifacts/MacTypeManager-Universal/MacTypeManager-Universal.zip" -DestinationPath "release-files/Manager"
+          Write-Host "Manager extracted" -ForegroundColor Green
         }
 
-        # Extract agent builds
-        Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip" | ForEach-Object {
-          $platform = $_.Name -replace "MacType-(.+)-Release\.zip", '$1'
+        # 플랫폼별 Agent 추출
+        Write-Host "Extracting platform agents..." -ForegroundColor Cyan
+        $agentArchives = Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip"
+        foreach ($archive in $agentArchives) {
+          $platform = $archive.Name -replace "MacType-(.+)-Release\.zip", '$1'
           mkdir "release-files/Agents/$platform"
-          Expand-Archive -Path $_.FullName -DestinationPath "release-files/Agents/$platform"
+          Expand-Archive -Path $archive.FullName -DestinationPath "release-files/Agents/$platform"
+          Write-Host "Agent $platform extracted" -ForegroundColor Green
         }
 
-        # Installer not implemented yet
-
-    - name: Create Universal release archives
+    - name: Create release packages
       run: |
-        Write-Host "Creating Universal release archives..." -ForegroundColor Cyan
+        Write-Host "Creating release packages..." -ForegroundColor Cyan
 
-        # Create complete Universal package
+        # 전체 패키지
         Compress-Archive -Path release-files/* -DestinationPath MacType-Universal-Complete.zip -CompressionLevel Optimal
 
-        # Create manager-only package
-        Compress-Archive -Path release-files/Manager/* -DestinationPath MacType-Manager-Universal.zip -CompressionLevel Optimal
-
-        # Create agents-only package
-        Compress-Archive -Path release-files/Agents/* -DestinationPath MacType-Agents-Universal.zip -CompressionLevel Optimal
-
-        Write-Host "Universal release archives created:" -ForegroundColor Green
-        Get-ChildItem -Filter "*.zip" | ForEach-Object {
-          Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)"
+        # 개별 패키지들
+        if (Test-Path "release-files/Manager") {
+          Compress-Archive -Path release-files/Manager/* -DestinationPath MacType-Manager-Universal.zip -CompressionLevel Optimal
+        }
+        if (Test-Path "release-files/Agents") {
+          Compress-Archive -Path release-files/Agents/* -DestinationPath MacType-Agents-Universal.zip -CompressionLevel Optimal
         }
 
-    - name: Upload Universal release archives
+        # 패키지 정보 출력
+        Write-Host "Release packages created:" -ForegroundColor Green
+        Get-ChildItem -Filter "MacType-*.zip" | ForEach-Object {
+          $size = [math]::Round($_.Length / 1MB, 2)
+          Write-Host "  $($_.Name) ($size MB)" -ForegroundColor Gray
+        }
+
+    - name: Upload release packages
       uses: actions/upload-artifact@v4
       with:
-        name: MacType-Universal-Release
-        path: |
-          MacType-Universal-*.zip
+        name: MacType-Release-Packages
+        path: MacType-*.zip
         retention-days: 60
 
-  deploy-universal-release:
-    name: Deploy Universal Release
+  deploy-release:
+    name: Deploy Release
     runs-on: windows-latest
-    needs: create-universal-release
+    needs: create-release
     if: github.event_name == 'release'
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
-    - name: Download Universal release archives
+    - name: Download release packages
       uses: actions/download-artifact@v4
       with:
-        name: MacType-Universal-Release
+        name: MacType-Release-Packages
         path: release-assets
 
-    - name: Publish to GitHub Release
+    - name: Deploy to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: release-assets/*.zip
@@ -424,4 +354,3 @@ jobs:
         draft: false
         prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
         generate_release_notes: true
-        # Note: Installer will be added later when implemented
