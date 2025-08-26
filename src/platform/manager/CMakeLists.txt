@@ -84,6 +84,26 @@ set_target_properties(MacTypeManager PROPERTIES
     VS_PACKAGE_REFERENCES "Microsoft.WindowsAppSDK_1.4"
 )
 
+# Add integration test executable
+add_executable(MacTypeManagerTest
+    test_integration.cpp
+    MacTypeCommunication.cpp
+    pch.cpp
+)
+
+target_precompile_headers(MacTypeManagerTest PRIVATE pch.h)
+
+target_link_libraries(MacTypeManagerTest
+    PRIVATE
+    # Add any required libraries here
+)
+
+target_include_directories(MacTypeManagerTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../agent
+    ${CMAKE_CURRENT_SOURCE_DIR}/../
+)
+
 # Installation
 install(TARGETS MacTypeManager
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

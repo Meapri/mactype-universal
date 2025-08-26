@@ -436,6 +436,7 @@ if(WIN32)
             src/platform/agent/core/agent_controller.cpp
             src/platform/agent/core/process_bridge.cpp
             src/platform/agent/ipc/secure_channel.cpp
+            src/platform/agent/ipc/named_pipe_server.cpp
             src/platform/agent/injection/modern_injector.cpp
             src/platform/agent/utils/logger.cpp
             src/platform/agent/utils/winrt_helper.cpp

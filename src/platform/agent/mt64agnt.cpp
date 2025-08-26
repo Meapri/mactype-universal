@@ -17,6 +17,7 @@
 
 #include "core/agent_controller.h"
 #include "ipc/secure_channel.h"
+#include "ipc/named_pipe_server.h"
 #include "utils/logger.h"
 #include "utils/winrt_helper.h"
 
@@ -39,6 +40,7 @@ class AgentApplication {
 private:
     std::unique_ptr<AgentController> m_controller;
     std::unique_ptr<AgentLogger> m_logger;
+    std::unique_ptr<MacType::Agent::NamedPipeServer> m_pipeServer;
     BackgroundTaskDeferral m_deferral{ nullptr };
     bool m_isRunning = false;
 
@@ -65,6 +67,10 @@ public:
             // Create and initialize controller
             m_controller = std::make_unique<AgentController>();
             co_await m_controller->InitializeAsync();
+
+            // Create and initialize named pipe server
+            m_pipeServer = std::make_unique<MacType::Agent::NamedPipeServer>(m_controller.get());
+            co_await m_pipeServer->StartAsync();
 
             co_await m_logger->InfoAsync("AgentApplication", "Agent application initialized successfully");
 
