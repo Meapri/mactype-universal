@@ -166,7 +166,40 @@ jobs:
 
         # Check vcpkg version and status
         Write-Host "Checking vcpkg version..." -ForegroundColor Cyan
-        .\vcpkg.exe version
+
+        # Find vcpkg.exe (check multiple possible locations)
+        $vcpkgExePath = $null
+        $possibleVcpkgPaths = @(
+          ".\vcpkg.exe",
+          ".\vcpkg\vcpkg.exe",
+          "$env:VCPKG_ROOT\vcpkg.exe",
+          "$vcpkgRoot\vcpkg.exe"
+        )
+
+        foreach ($path in $possibleVcpkgPaths) {
+          Write-Host "Checking for vcpkg.exe at: $path" -ForegroundColor Gray
+          if (Test-Path $path) {
+            $vcpkgExePath = $path
+            Write-Host "Found vcpkg.exe at: $path" -ForegroundColor Green
+            break
+          }
+        }
+
+        if (!$vcpkgExePath) {
+          Write-Host "ERROR: vcpkg.exe not found in any of the expected locations" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT" -ForegroundColor Yellow
+          Write-Host "vcpkgRoot variable: $vcpkgRoot" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name
+          if (Test-Path "vcpkg") {
+            Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path "vcpkg" -Name
+          }
+          exit 1
+        }
+
+        # Run vcpkg version check
+        & $vcpkgExePath version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: vcpkg version check failed" -ForegroundColor Red
           exit 1
@@ -174,23 +207,23 @@ jobs:
 
         # Install for each triplet using manifest mode
         Write-Host "Installing for x64-windows..." -ForegroundColor Cyan
-        .\vcpkg\vcpkg.exe install --triplet=x64-windows --no-print-usage
+        & $vcpkgExePath install --triplet=x64-windows --no-print-usage
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for x64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
           Write-Host "Checking vcpkg root..." -ForegroundColor Yellow
-          .\vcpkg\vcpkg.exe root
+          & $vcpkgExePath root
           exit 1
         }
 
         Write-Host "Installing for x86-windows..." -ForegroundColor Cyan
-        .\vcpkg\vcpkg.exe install --triplet=x86-windows --no-print-usage
+        & $vcpkgExePath install --triplet=x86-windows --no-print-usage
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for x86-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
           exit 1
         }
 
         Write-Host "Installing for arm64-windows..." -ForegroundColor Cyan
-        .\vcpkg\vcpkg.exe install --triplet=arm64-windows --no-print-usage
+        & $vcpkgExePath install --triplet=arm64-windows --no-print-usage
         if ($LASTEXITCODE -ne 0) {
           Write-Host "ERROR: Failed to install dependencies for arm64-windows (Exit code: $LASTEXITCODE)" -ForegroundColor Red
           exit 1
