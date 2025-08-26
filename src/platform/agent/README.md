@@ -133,9 +133,11 @@ Our modernized approach uses unified, self-contained DLLs:
 **Target**: Modern MacType management and style customization experience
 
 #### Core Functionality (MacType Manager):
-MacWiz was the original MacType style selector and manager. The modern version will provide:
+MacWiz was the original comprehensive MacType management tool with three main functions:
 
-- **Rendering Style Selection**: Choose from Clean, CRT, LCD, and custom profiles
+- **Start Mode Selection**: Choose MacType execution modes (Service, Tray, Manual)
+- **Process Manager**: Monitor and manage running processes for font injection
+- **Profile Selection & Application**: Choose and apply rendering profiles with live preview
 - **Real-time Font Preview**: Live preview of font rendering with different styles
 - **Profile Management**: Create, save, and switch between custom font profiles
 - **Font Analysis Tools**: System font inventory and compatibility testing
@@ -156,6 +158,31 @@ MacWiz was the original MacType style selector and manager. The modern version w
 - **Async Font Processing**: Non-blocking font analysis and preview
 - **Plugin Architecture**: Extensible font processing modules
 - **Settings Migration**: Legacy INI to modern JSON conversion
+
+#### Start Mode Management:
+**Execution Mode Selection:**
+- **Service Mode**: Background service with automatic font injection
+- **Tray Mode**: System tray icon with manual control
+- **Manual Mode**: User-controlled injection via drag-and-drop
+- **Safe Mode**: Diagnostic mode for troubleshooting
+
+**Mode Switching:**
+- Seamless switching between execution modes
+- Configuration preservation across mode changes
+- Automatic service management
+
+#### Process Management:
+**Real-time Process Monitoring:**
+- Live process list with architecture detection
+- Font injection status per process
+- CPU and memory usage monitoring
+- Process-specific font settings
+
+**Process Control:**
+- Manual font injection for specific processes
+- Exclude/include process lists
+- Process restart and injection rollback
+- Batch operations for multiple processes
 
 #### Rendering Styles Management:
 Based on original MacWiz functionality, the modern manager will support:
@@ -214,19 +241,23 @@ Based on original MacWiz functionality, the modern manager will support:
 - Basic UI components: Style gallery, preview panel
 - Legacy INI to JSON migration tools
 
-#### Phase 2: Core Features (4-6 weeks)
+#### Phase 2: Core Features (6-8 weeks)
+- **Start Mode Management**: Service, Tray, Manual, Safe mode selection
+- **Process Manager**: Real-time monitoring, manual injection, batch operations
 - **Style Management**: Built-in styles (Clean, CRT, LCD, platform styles)
 - **Live Preview Engine**: Real-time font rendering comparison
-- **Profile System**: Create, save, load custom profiles
+- **Profile System**: Create, save, load custom profiles with process-specific settings
 - **Font Analysis**: System font scanning and compatibility reports
-- **Settings Integration**: Seamless integration with MacType core
+- **Settings Integration**: Seamless integration with MacType core and mt64agnt
 
-#### Phase 3: Advanced Features (3-5 weeks)
-- **Batch Operations**: Apply settings to multiple applications
-- **Performance Monitoring**: Rendering impact visualization
-- **Cloud Sync**: Optional profile synchronization
-- **Plugin Architecture**: Extensible font processing modules
-- **Advanced Diagnostics**: System font analysis tools
+#### Phase 3: Advanced Features (4-6 weeks)
+- **Advanced Process Control**: Automated injection rules, smart exclusions
+- **System Integration**: Windows Service management, startup integration
+- **Batch Operations**: Apply settings to multiple applications and processes
+- **Performance Monitoring**: Rendering impact visualization and optimization
+- **Cloud Sync**: Optional profile synchronization across devices
+- **Plugin Architecture**: Extensible font processing and analysis modules
+- **Advanced Diagnostics**: Deep system font analysis and troubleshooting tools
 
 #### Phase 4: Testing & Polish (3-4 weeks)
 - Comprehensive testing across Windows 10/11 and ARM64
