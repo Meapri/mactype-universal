@@ -150,11 +150,53 @@ jobs:
         cd vcpkg
 
         # Install for each triplet using manifest mode
+        Write-Host "Installing for x64-windows..." -ForegroundColor Cyan
         .\vcpkg.exe install --triplet=x64-windows --no-print-usage
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: Failed to install dependencies for x64-windows" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Installing for x86-windows..." -ForegroundColor Cyan
         .\vcpkg.exe install --triplet=x86-windows --no-print-usage
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: Failed to install dependencies for x86-windows" -ForegroundColor Red
+          exit 1
+        }
+
+        Write-Host "Installing for arm64-windows..." -ForegroundColor Cyan
         .\vcpkg.exe install --triplet=arm64-windows --no-print-usage
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: Failed to install dependencies for arm64-windows" -ForegroundColor Red
+          exit 1
+        }
 
         cd ..
+
+        # Verify installations
+        Write-Host "Verifying vcpkg installations..." -ForegroundColor Cyan
+
+        $triplets = @("x64-windows", "x86-windows", "arm64-windows")
+        foreach ($triplet in $triplets) {
+          $installedPath = "$vcpkgRoot\installed\$triplet"
+          if (!(Test-Path $installedPath)) {
+            Write-Host "ERROR: Installation directory not found: $installedPath" -ForegroundColor Red
+            Write-Host "Contents of installed directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path "$vcpkgRoot\installed" -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          # Check if FreeType is installed
+          $freetypeLib = "$installedPath\lib\freetype.lib"
+          if (!(Test-Path $freetypeLib)) {
+            Write-Host "ERROR: FreeType not found in $triplet at $freetypeLib" -ForegroundColor Red
+            Write-Host "Contents of $triplet\lib:" -ForegroundColor Yellow
+            Get-ChildItem -Path "$installedPath\lib" -Name -ErrorAction SilentlyContinue
+            exit 1
+          }
+
+          Write-Host "✓ $triplet: FreeType found at $freetypeLib" -ForegroundColor Green
+        }
 
         Write-Host "Environment setup completed successfully" -ForegroundColor Green
 
@@ -203,25 +245,43 @@ jobs:
 
         Write-Host "Using vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
 
+        # Verify vcpkg.exe exists
+        $vcpkgExe = "$vcpkgRoot\vcpkg.exe"
+        if (!(Test-Path $vcpkgExe)) {
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExe" -ForegroundColor Red
+          Get-ChildItem -Path $vcpkgRoot -Name
+          exit 1
+        }
+
+        Write-Host "✓ vcpkg.exe found at $vcpkgExe" -ForegroundColor Green
+
         # Verify vcpkg installation
         $vcpkgInstalled = "$vcpkgRoot\installed\x64-windows"
         if (!(Test-Path "$vcpkgInstalled")) {
           Write-Host "ERROR: vcpkg installed directory not found at $vcpkgInstalled" -ForegroundColor Red
-          Get-ChildItem -Path "$vcpkgRoot\installed" -ErrorAction SilentlyContinue
+          Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path $vcpkgRoot -Name
+          if (Test-Path "$vcpkgRoot\installed") {
+            Write-Host "Contents of installed directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path "$vcpkgRoot\installed" -Name -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "installed directory does not exist" -ForegroundColor Red
+          }
           exit 1
         }
 
-        Write-Host "vcpkg installed at: $vcpkgInstalled" -ForegroundColor Green
+        Write-Host "✓ vcpkg installed at: $vcpkgInstalled" -ForegroundColor Green
 
         # Verify FreeType exists
         $freetypeLib = "$vcpkgInstalled\lib\freetype.lib"
         if (!(Test-Path $freetypeLib)) {
           Write-Host "ERROR: FreeType library not found at $freetypeLib" -ForegroundColor Red
+          Write-Host "Contents of lib directory:" -ForegroundColor Yellow
           Get-ChildItem -Path "$vcpkgInstalled\lib" -Name -ErrorAction SilentlyContinue
           exit 1
         }
 
-        Write-Host "FreeType found at: $freetypeLib" -ForegroundColor Green
+        Write-Host "✓ FreeType found at: $freetypeLib" -ForegroundColor Green
 
         # Create build directory
         mkdir build-manager
@@ -336,6 +396,31 @@ jobs:
 
         Write-Host "Using vcpkg at: $vcpkgRoot" -ForegroundColor Cyan
 
+        # Verify vcpkg.exe exists
+        $vcpkgExe = "$vcpkgRoot\vcpkg.exe"
+        if (!(Test-Path $vcpkgExe)) {
+          Write-Host "ERROR: vcpkg.exe not found at $vcpkgExe" -ForegroundColor Red
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name
+          if (Test-Path "vcpkg") {
+            Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
+            Get-ChildItem -Path "vcpkg" -Name
+          }
+          exit 1
+        }
+
+        Write-Host "✓ vcpkg.exe found at $vcpkgExe" -ForegroundColor Green
+
+        # Verify that installed directory exists
+        if (!(Test-Path "$vcpkgRoot\installed")) {
+          Write-Host "ERROR: vcpkg installed directory not found at $vcpkgRoot\installed" -ForegroundColor Red
+          Write-Host "Contents of vcpkg directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path $vcpkgRoot -Name
+          exit 1
+        }
+
+        Write-Host "✓ vcpkg installed directory found" -ForegroundColor Green
+
     - name: Build Platforms
       id: build-platforms
       run: |
@@ -356,6 +441,13 @@ jobs:
 
         $buildTimes = @{}
         $totalBuildStart = Get-Date
+
+        # Set up vcpkg environment for build
+        $vcpkgRoot = (Get-Location).Path + "\vcpkg"
+        $env:VCPKG_ROOT = $vcpkgRoot
+        $env:PATH = "$vcpkgRoot;$env:PATH"
+
+        Write-Host "VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Cyan
 
         foreach ($plat in $platforms) {
           Write-Host "Building $($plat.Name) ($($plat.Desc))..." -ForegroundColor Cyan
@@ -384,21 +476,27 @@ jobs:
           # Verify vcpkg installation for this triplet
           if (!(Test-Path "$vcpkgInstalled")) {
             Write-Host "ERROR: vcpkg installed directory not found for $vcpkgTriplet at $vcpkgInstalled" -ForegroundColor Red
-            Get-ChildItem -Path "$vcpkgRoot\installed" -Name -ErrorAction SilentlyContinue
+            Write-Host "Available triplets in installed directory:" -ForegroundColor Yellow
+            if (Test-Path "$vcpkgRoot\installed") {
+              Get-ChildItem -Path "$vcpkgRoot\installed" -Name -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "installed directory does not exist at $vcpkgRoot\installed" -ForegroundColor Red
+            }
             exit 1
           }
 
-          Write-Host "vcpkg installed for $($plat.Name): $vcpkgInstalled" -ForegroundColor Green
+          Write-Host "✓ vcpkg installed for $($plat.Name): $vcpkgInstalled" -ForegroundColor Green
 
           # Verify FreeType exists for this triplet
           $freetypeLib = "$vcpkgInstalled\lib\freetype.lib"
           if (!(Test-Path $freetypeLib)) {
             Write-Host "ERROR: FreeType library not found for $vcpkgTriplet at $freetypeLib" -ForegroundColor Red
+            Write-Host "Available libraries in $vcpkgTriplet\lib:" -ForegroundColor Yellow
             Get-ChildItem -Path "$vcpkgInstalled\lib" -Name -ErrorAction SilentlyContinue
             exit 1
           }
 
-          Write-Host "FreeType found for $($plat.Name): $freetypeLib" -ForegroundColor Green
+          Write-Host "✓ FreeType found for $($plat.Name): $freetypeLib" -ForegroundColor Green
 
           if ($plat.Platform -eq "Win32") {
             cmake .. -G "Visual Studio 17 2022" -A Win32 `
