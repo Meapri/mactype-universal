@@ -128,30 +128,57 @@ Our modernized approach uses unified, self-contained DLLs:
 
 ## Modern GUI Applications Plan
 
-### MacWiz → Modern Setup Wizard (WinUI 3)
-**Current Status**: Legacy Win32 installer wizard
-**Target**: Modern native Windows setup experience
+### MacWiz → Modern MacType Manager (WinUI 3)
+**Current Status**: Legacy Win32 rendering style selector
+**Target**: Modern MacType management and style customization experience
+
+#### Core Functionality (MacType Manager):
+MacWiz was the original MacType style selector and manager. The modern version will provide:
+
+- **Rendering Style Selection**: Choose from Clean, CRT, LCD, and custom profiles
+- **Real-time Font Preview**: Live preview of font rendering with different styles
+- **Profile Management**: Create, save, and switch between custom font profiles
+- **Font Analysis Tools**: System font inventory and compatibility testing
+- **Batch Operations**: Apply settings to multiple applications
 
 #### Key Features:
 - **WinUI 3 Native UI**: Fluent Design with Mica/Acrylic backdrops
-- **ARM64 Support**: Native ARM64 installation and configuration
-- **Modern Package Management**: MSIX integration and auto-updates
+- **ARM64 Support**: Native ARM64 font rendering management
+- **Modern Settings System**: JSON-based configuration with validation
+- **Live Preview Engine**: Real-time font rendering comparison
+- **Profile Sync**: Cloud synchronization for settings (optional)
 - **Accessibility**: Narrator support and keyboard navigation
 - **Dark Mode**: System theme integration
 
 #### Architecture:
-- **MVVM Pattern**: ViewModel-based data binding
-- **JSON Configuration**: Modern settings format
-- **Async Operations**: Non-blocking installation process
-- **Progress Visualization**: Modern progress indicators
-- **Error Recovery**: Intelligent rollback mechanisms
+- **MVVM Pattern**: ViewModel-based data binding with reactive UI updates
+- **JSON Configuration**: Modern settings format with schema validation
+- **Async Font Processing**: Non-blocking font analysis and preview
+- **Plugin Architecture**: Extensible font processing modules
+- **Settings Migration**: Legacy INI to modern JSON conversion
+
+#### Rendering Styles Management:
+Based on original MacWiz functionality, the modern manager will support:
+
+**Built-in Styles:**
+- **Clean Series**: Clean, Clean V2.0, Clean Dark/Light variants
+- **Display Technologies**: CRT (Cathode Ray Tube), LCD (Liquid Crystal)
+- **Platform Styles**: iOS, Android, Microsoft, macOS, Windows 7
+- **Font Collections**: XHei, XSung, XCross, IoF series
+
+**Custom Profiles:**
+- User-defined rendering parameters
+- Font-specific adjustments
+- Application-specific settings
+- Export/import functionality
 
 #### User Experience:
-- **Welcome Screen**: Feature overview and system compatibility check
-- **Installation Options**: Custom installation paths and component selection
-- **Configuration Wizard**: Profile setup and font preferences
-- **Service Integration**: Automatic service registration
-- **Completion**: Quick start guide and troubleshooting tips
+- **Style Gallery**: Visual style selection with previews
+- **Font Analysis**: System font scanning and compatibility reports
+- **Live Comparison**: Side-by-side rendering comparison
+- **Profile Editor**: Advanced parameter customization
+- **Performance Monitor**: Rendering impact visualization
+- **Help & Tutorials**: Built-in guidance and troubleshooting
 
 ### MacTuner → Modern Settings App (WinUI 3)
 **Current Status**: Legacy Win32 settings dialog
@@ -178,30 +205,33 @@ Our modernized approach uses unified, self-contained DLLs:
 4. **Compatibility Checker**: Application-specific font testing
 5. **Backup Manager**: Configuration versioning and recovery
 
-### Implementation Roadmap
+### MacWiz Implementation Roadmap
 
-#### Phase 1: Foundation (4-6 weeks)
-- WinUI 3 project setup and basic architecture
-- MVVM framework implementation
-- JSON configuration system
-- Basic UI components development
+#### Phase 1: Foundation (3-4 weeks)
+- WinUI 3 project setup with C++/WinRT
+- MVVM architecture implementation
+- JSON configuration system with schema validation
+- Basic UI components: Style gallery, preview panel
+- Legacy INI to JSON migration tools
 
-#### Phase 2: Core Features (6-8 weeks)
-- Installation wizard implementation
-- Settings app core functionality
-- Font analysis and preview systems
-- ARM64 compatibility and testing
+#### Phase 2: Core Features (4-6 weeks)
+- **Style Management**: Built-in styles (Clean, CRT, LCD, platform styles)
+- **Live Preview Engine**: Real-time font rendering comparison
+- **Profile System**: Create, save, load custom profiles
+- **Font Analysis**: System font scanning and compatibility reports
+- **Settings Integration**: Seamless integration with MacType core
 
-#### Phase 3: Advanced Features (4-6 weeks)
-- Cloud synchronization
-- Advanced diagnostics
-- Plugin system implementation
-- Performance optimization
+#### Phase 3: Advanced Features (3-5 weeks)
+- **Batch Operations**: Apply settings to multiple applications
+- **Performance Monitoring**: Rendering impact visualization
+- **Cloud Sync**: Optional profile synchronization
+- **Plugin Architecture**: Extensible font processing modules
+- **Advanced Diagnostics**: System font analysis tools
 
-#### Phase 4: Testing & Polish (4-6 weeks)
-- Comprehensive testing across platforms
-- User experience refinement
-- Documentation and localization
+#### Phase 4: Testing & Polish (3-4 weeks)
+- Comprehensive testing across Windows 10/11 and ARM64
+- User experience refinement and accessibility improvements
+- Documentation and built-in help system
 - Beta testing and feedback integration
 
 ### Technical Specifications
