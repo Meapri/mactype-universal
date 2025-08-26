@@ -205,9 +205,53 @@ jobs:
           exit 1
         }
 
-        # Go back to project root for manifest mode installation
-        cd ..
-        Write-Host "Current directory for vcpkg install: $(Get-Location)" -ForegroundColor Cyan
+        # Find the correct project root directory
+        Write-Host "Finding project root directory..." -ForegroundColor Cyan
+        $currentPath = Get-Location
+        Write-Host "Current path: $currentPath" -ForegroundColor Gray
+
+        # Check if we're in the correct project directory or need to go deeper
+        $projectRoot = $null
+        $possibleRoots = @(
+          ".",                    # Current directory
+          ".\mactype-universal",  # GitHub Actions nested directory
+          ".."                    # Parent directory
+        )
+
+        foreach ($root in $possibleRoots) {
+          $testPath = Join-Path $currentPath $root
+          $vcpkgJsonTestPath = Join-Path $testPath "vcpkg.json"
+          Write-Host "Testing path: $vcpkgJsonTestPath" -ForegroundColor Gray
+
+          if (Test-Path $vcpkgJsonTestPath) {
+            $projectRoot = $testPath
+            Write-Host "Found project root at: $projectRoot" -ForegroundColor Green
+            break
+          }
+        }
+
+        if (!$projectRoot) {
+          Write-Host "ERROR: Could not find project root with vcpkg.json" -ForegroundColor Red
+          Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+          Write-Host "Contents of current directory:" -ForegroundColor Yellow
+          Get-ChildItem -Path "." -Name -ErrorAction SilentlyContinue
+
+          # Check if there's a subdirectory that might contain the project
+          $subdirs = Get-ChildItem -Path "." -Directory -Name -ErrorAction SilentlyContinue
+          foreach ($subdir in $subdirs) {
+            Write-Host "Contents of $subdir subdirectory:" -ForegroundColor Yellow
+            Get-ChildItem -Path $subdir -Name -ErrorAction SilentlyContinue
+            $subdirVcpkgJson = Join-Path $subdir "vcpkg.json"
+            if (Test-Path $subdirVcpkgJson) {
+              Write-Host "Found vcpkg.json in: $subdirVcpkgJson" -ForegroundColor Green
+            }
+          }
+          exit 1
+        }
+
+        # Change to the correct project root
+        Set-Location $projectRoot
+        Write-Host "Changed to project root: $(Get-Location)" -ForegroundColor Cyan
 
         # Verify vcpkg.json exists in project root for manifest mode
         Write-Host "Verifying vcpkg.json for manifest mode..." -ForegroundColor Cyan
