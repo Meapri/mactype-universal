@@ -13,51 +13,26 @@ concurrency:
   group: build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
+
 jobs:
-  static-analysis:
-    name: Static Analysis
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup MSVC
-      uses: microsoft/setup-msbuild@v2
-
-    - name: Check code quality with MSVC analyzer
-      run: |
-        # Create a simple analysis using MSVC compiler warnings
-        mkdir build-analysis
-        cd build-analysis
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="/analyze /analyze:stacksize 16384 /analyze:max_paths 256"
-        cmake --build . --config Debug -- /p:RunCodeAnalysis=true 2>&1 | tee msvc-analysis.log || true
-
-    - name: Upload analysis results
-      uses: actions/upload-artifact@v4
-      with:
-        name: static-analysis-results
-        path: |
-          build-analysis/msvc-analysis.log
-        retention-days: 7
-
   build:
-    name: Build
+    name: Build ${{ matrix.platform }} ${{ matrix.configuration }}
     runs-on: windows-latest
-    timeout-minutes: 90
-    needs: static-analysis
+    timeout-minutes: 45  # 빌드 시간 단축
 
     strategy:
       fail-fast: false
       matrix:
-        platform: [x86, x64, ARM64]  # x86 코어 DLL 유지 (32비트 앱 지원) + mt64agnt 제거
+        platform: [x86, x64, ARM64]
         configuration: [Release]
-        # ARM64 mt64agnt 빌드 포함으로 미래 생태계 대비
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 1  # 히스토리 최소화로 속도 향상
 
     - name: Setup CMake
       uses: lukka/get-cmake@latest
@@ -65,60 +40,23 @@ jobs:
     - name: Setup Ninja
       uses: seanmiddleditch/gha-setup-ninja@master
 
+    - name: Cache Windows App SDK
+      id: cache-windows-app-sdk
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.*
+          C:\Program Files (x86)\WindowsApps\Microsoft.WindowsAppSDK.*
+        key: windows-app-sdk-1.4-${{ runner.os }}
+        restore-keys: |
+          windows-app-sdk-1.4-
+          windows-app-sdk-
+
     - name: Install Windows App SDK
+      if: steps.cache-windows-app-sdk.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing Windows App SDK..." -ForegroundColor Green
-        # Windows App SDK 설치 (winget 사용)
-        winget install Microsoft.WindowsAppSDK --accept-package-agreements --accept-source-agreements --silent
-
-        # 설치 확인 및 환경 설정
-        Write-Host "Checking Windows App SDK installation..." -ForegroundColor Cyan
-
-        # 일반적인 설치 경로들 확인
-        $possiblePaths = @(
-          "${env:ProgramFiles}\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
-          "${env:ProgramFiles}\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\",
-          "${env:ProgramFiles}\WindowsApps\Microsoft.WindowsAppSDK.1.2_*\",
-          "${env:ProgramFiles(x86)}\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
-          "${env:ProgramFiles(x86)}\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\",
-          "${env:ProgramFiles(x86)}\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.2_*\"
-        )
-
-        $foundSdk = $false
-        foreach ($path in $possiblePaths) {
-          if (Test-Path $path) {
-            $actualPath = Resolve-Path $path
-            Write-Host "Windows App SDK found at: $actualPath" -ForegroundColor Green
-            $foundSdk = $true
-            break
-          }
-        }
-
-        if (-not $foundSdk) {
-          Write-Host "Windows App SDK not found in expected locations, checking winget..." -ForegroundColor Yellow
-          winget list Microsoft.WindowsAppSDK
-
-          # winget이 설치한 경우, 기본 경로를 다시 확인
-          $defaultPaths = @(
-            "C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
-            "C:\Program Files\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\",
-            "C:\Program Files (x86)\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.4_*\",
-            "C:\Program Files (x86)\Microsoft\WindowsApps\Microsoft.WindowsAppSDK.1.3_*\"
-          )
-
-          foreach ($path in $defaultPaths) {
-            if (Test-Path $path) {
-              $actualPath = Resolve-Path $path
-              Write-Host "Windows App SDK found at: $actualPath" -ForegroundColor Green
-              $foundSdk = $true
-              break
-            }
-          }
-        }
-
-        if (-not $foundSdk) {
-          Write-Host "Windows App SDK installation might have failed, continuing anyway..." -ForegroundColor Yellow
-        }
+        winget install Microsoft.WindowsAppSDK.1.4 --accept-package-agreements --accept-source-agreements --silent --force
 
     - name: Add Windows SDK to PATH and set compatible SDK version
       run: |
@@ -151,21 +89,32 @@ jobs:
         Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\" -ErrorAction SilentlyContinue
         Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\" -ErrorAction SilentlyContinue
 
-    # vcpkg 캐시 비활성화 - baseline 문제 해결을 위해
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          vcpkg
+          vcpkg/installed
+        key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+        restore-keys: |
+          vcpkg-${{ runner.os }}-
+          vcpkg-
 
     - name: Setup vcpkg
       run: |
-        if (Test-Path "vcpkg") { Remove-Item -Recurse -Force vcpkg }
-        git clone https://github.com/Microsoft/vcpkg.git
-        cd vcpkg
-        if (!(Test-Path "vcpkg.exe")) { .\bootstrap-vcpkg.bat }
+        if (!(Test-Path "vcpkg")) {
+          git clone https://github.com/Microsoft/vcpkg.git --depth 1
+          cd vcpkg
+          .\bootstrap-vcpkg.bat -disableMetrics
+        } else {
+          cd vcpkg
+        }
         echo "VCPKG_ROOT=$PWD" >> $env:GITHUB_ENV
         echo "$PWD" >> $env:GITHUB_PATH
         cd ..
 
-    - name: Install detours and deps via vcpkg (manifest)
+    - name: Install dependencies via vcpkg
       run: |
-        # 플랫폼별 triplet 설정
         $triplet = switch ("${{ matrix.platform }}") {
             "x64" { "x64-windows" }
             "x86" { "x86-windows" }
@@ -173,16 +122,14 @@ jobs:
             default { "x64-windows" }
         }
 
-        # vcpkg는 이미 Setup vcpkg 단계에서 설치됨
+        Write-Host "Installing dependencies for $triplet..." -ForegroundColor Cyan
 
-        # vcpkg로 의존성 설치 (매니페스트 모드)
-        .\vcpkg\vcpkg.exe install --triplet $triplet
+        # 병렬 설치 및 캐시 활용
+        .\vcpkg\vcpkg.exe install --triplet $triplet --binarycaching
 
-        # vcpkg 설치 확인 및 목록 출력
-        Write-Host "vcpkg 의존성 설치 완료" -ForegroundColor Green
-        .\vcpkg\vcpkg.exe list --triplet $triplet
+        Write-Host "Dependencies installed successfully" -ForegroundColor Green
 
-    - name: Configure CMake
+    - name: Configure and Build
       run: |
         if (Test-Path "build") {
           Remove-Item -Recurse -Force build
@@ -190,17 +137,7 @@ jobs:
         mkdir build
         cd build
 
-        # vcpkg toolchain 경로 확인 및 설정
-        $vcpkgToolchain = "$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake"
-        if (!(Test-Path $vcpkgToolchain)) {
-          Write-Host "vcpkg toolchain not found at: $vcpkgToolchain"
-          Write-Host "Current directory: $PWD"
-          Get-ChildItem -Path "$PWD/../vcpkg" -Recurse -Filter "vcpkg.cmake" | Select-Object FullName
-          exit 1
-        }
-
-        Write-Host "Using vcpkg toolchain: $vcpkgToolchain"
-        # 플랫폼별 CMake 설정
+        # 플랫폼별 설정
         $generatorPlatform = switch ("${{ matrix.platform }}") {
             "x64" { "x64" }
             "x86" { "Win32" }
@@ -213,45 +150,56 @@ jobs:
             "ARM64" { "arm64-windows" }
             default { "x64-windows" }
         }
-        # ARM64에서 mt64agnt 빌드 추가: ARM64 네이티브 앱 생태계 성장 고려
-        # x86에서 mt64agnt 빌드 제외: x64 mt64agnt로 32비트 프로세스 처리 가능
-        # mt64agnt 빌드 전략: 플랫폼별 mt64agnt vs 앱별 코어 DLL 구분
         $buildAgentFlag = switch ("${{ matrix.platform }}") {
-            "x86" { "OFF" }  # x86 mt64agnt: 제거 (32비트 Windows 지원 중단) + x86 코어 DLL 유지
-            "x64" { "ON" }   # x64 mt64agnt: 유지 (32비트 + 64비트 프로세스 모두 모니터링)
-            "ARM64" { "ON" } # ARM64 mt64agnt: 유지 (ARM64 + x64 + x86 프로세스 모두 모니터링)
+            "x86" { "OFF" }
+            "x64" { "ON" }
+            "ARM64" { "ON" }
             default { "ON" }
         }
-        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform -DCMAKE_TOOLCHAIN_FILE="$vcpkgToolchain" -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet -DVCPKG_INSTALLED_DIR="$PWD/../vcpkg/installed" -DBUILD_MODERN_AGENT=$buildAgentFlag
 
-    - name: Build with CMake
+        # 최적화된 CMake 구성
+        Write-Host "Configuring CMake for $generatorPlatform..." -ForegroundColor Cyan
+        cmake .. `
+          -G Ninja `
+          -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} `
+          -DCMAKE_GENERATOR_PLATFORM=$generatorPlatform `
+          -DCMAKE_TOOLCHAIN_FILE="$PWD/../vcpkg/scripts/buildsystems/vcpkg.cmake" `
+          -DVCPKG_TARGET_TRIPLET=$vcpkgTriplet `
+          -DBUILD_MODERN_AGENT=$buildAgentFlag `
+          -DCMAKE_CXX_FLAGS="/MP /O2"  # 병렬 컴파일 및 최적화
+
+        # 병렬 빌드
+        Write-Host "Building with Ninja (parallel: $env:NUMBER_OF_PROCESSORS cores)..." -ForegroundColor Cyan
+        cmake --build . --config ${{ matrix.configuration }} --parallel $env:NUMBER_OF_PROCESSORS
+
+    - name: Create artifact archive
       run: |
         cd build
-        cmake --build . --config ${{ matrix.configuration }} --parallel
+        Write-Host "Creating compressed artifact archive..." -ForegroundColor Cyan
+        Compress-Archive -Path "*.exe", "*.dll" -DestinationPath "../MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip" -CompressionLevel Optimal
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: mactype-${{ matrix.platform }}-${{ matrix.configuration }}
-        path: |
-          build/**/*.dll
-          build/**/*.exe
-          build/**/*.pdb
-          build/**/*.lib
+        name: MacType-${{ matrix.platform }}-${{ matrix.configuration }}
+        path: MacType-${{ matrix.platform }}-${{ matrix.configuration }}.zip
         retention-days: 30
+        if-no-files-found: error
 
-    - name: List build artifacts
+    - name: List build results
       run: |
-        Write-Host "Release build artifacts:" -ForegroundColor Green
-        Get-ChildItem -Path build -Recurse -Include *.exe, *.dll | ForEach-Object {
-          Write-Host "  $($_.FullName) ($($_.Length) bytes)"
+        Write-Host "Build completed successfully!" -ForegroundColor Green
+        Write-Host "Generated files:" -ForegroundColor Cyan
+        Get-ChildItem -Path build -Include *.exe, *.dll -Recurse | ForEach-Object {
+          Write-Host "  $($_.Name) ($([math]::Round($_.Length / 1KB, 2)) KB)"
         }
 
   create-installer:
     name: Create Windows Installer
     runs-on: windows-latest
     needs: build
-    timeout-minutes: 30
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
 
     steps:
     - name: Checkout code
@@ -262,36 +210,46 @@ jobs:
       with:
         path: artifacts
 
-    - name: Setup NSIS
+    - name: Extract artifacts
       run: |
-        choco install nsis -y
+        Write-Host "Extracting build artifacts..." -ForegroundColor Cyan
+        Get-ChildItem -Path artifacts -Directory | ForEach-Object {
+          $artifactPath = $_.FullName
+          Get-ChildItem -Path $artifactPath -Filter "*.zip" | ForEach-Object {
+            Expand-Archive -Path $_.FullName -DestinationPath "installer/bin" -Force
+          }
+        }
+
+    - name: Cache NSIS
+      uses: actions/cache@v4
+      with:
+        path: C:\Program Files (x86)\NSIS
+        key: nsis-${{ runner.os }}
+
+    - name: Setup NSIS
+      if: steps.cache-nsis.outputs.cache-hit != 'true'
+      run: choco install nsis -y --no-progress
 
     - name: Build Windows installer
       run: |
-        Write-Host "Windows installer 빌드 시작..." -ForegroundColor Green
-        # Windows installer 스크립트 사용
         if (Test-Path "installer/mactype-universal.iss") {
-          Write-Host "MacType Windows 인스톨러 빌드 중..." -ForegroundColor Cyan
-          & "C:\Program Files (x86)\NSIS\makensis.exe" .\installer\mactype-universal.iss
-        } else {
-          Write-Host "인스톨러 스크립트 미발견, 건너뜀" -ForegroundColor Yellow
+          Write-Host "Building Windows installer..." -ForegroundColor Cyan
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer\mactype-universal.iss
         }
 
     - name: Upload Windows installer
       uses: actions/upload-artifact@v4
       with:
-        name: mactype-windows-installer
-        path: |
-          installer/Output/*.exe
-          installer/Output/*.msi
+        name: MacType-Windows-Installer
+        path: installer/Output/*.exe
         retention-days: 30
 
-  release:
-    name: Release
+  create-release:
+    name: Create Release Archive
     runs-on: windows-latest
     needs: [build, create-installer]
-    if: github.event_name == 'release'
-    timeout-minutes: 30
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
 
     steps:
     - name: Download all artifacts
@@ -299,15 +257,61 @@ jobs:
       with:
         path: artifacts
 
-    - name: Create release archive
+    - name: Extract and organize files
       run: |
-        Write-Host "릴리즈 아카이브 생성 중..." -ForegroundColor Green
-        Compress-Archive -Path artifacts/mactype-*-Release/* -DestinationPath MacType-Windows.zip
+        Write-Host "Organizing release files..." -ForegroundColor Cyan
+        mkdir release-files
 
-    - name: Upload release assets
+        # Extract platform-specific builds
+        Get-ChildItem -Path artifacts -Filter "MacType-*-Release.zip" | ForEach-Object {
+          $platform = $_.Name -replace "MacType-(.+)-Release\.zip", '$1'
+          Expand-Archive -Path $_.FullName -DestinationPath "release-files/$platform"
+        }
+
+        # Copy installer if exists
+        if (Test-Path "artifacts/MacType-Windows-Installer") {
+          Copy-Item "artifacts/MacType-Windows-Installer/*.exe" "release-files/"
+        }
+
+    - name: Create release archives
+      run: |
+        Write-Host "Creating release archives..." -ForegroundColor Cyan
+
+        # Create combined archive
+        Compress-Archive -Path release-files/* -DestinationPath MacType-Windows-Complete.zip -CompressionLevel Optimal
+
+        # Create separate platform archives
+        Get-ChildItem -Path release-files -Directory | ForEach-Object {
+          $platform = $_.Name
+          Compress-Archive -Path "release-files/$platform/*" -DestinationPath "MacType-Windows-$platform.zip" -CompressionLevel Optimal
+        }
+
+    - name: Upload release archives
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacType-Release-Archives
+        path: |
+          MacType-Windows-*.zip
+        retention-days: 60
+
+  deploy-release:
+    name: Deploy Release
+    runs-on: windows-latest
+    needs: create-release
+    if: github.event_name == 'release'
+    timeout-minutes: 10
+
+    steps:
+    - name: Download release archives
+      uses: actions/download-artifact@v4
+      with:
+        name: MacType-Release-Archives
+        path: release-assets
+
+    - name: Publish to GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          MacType-Windows.zip
-          artifacts/mactype-windows-installer/*.exe
+        files: release-assets/*.zip
         token: ${{ secrets.GITHUB_TOKEN }}
+        draft: false
+        prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
