@@ -31,22 +31,20 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Run clang-tidy
-      uses: ZedThree/clang-tidy-review@v0.20.3
+      uses: cpp-linter/clang-tidy-action@v2
       id: review
       with:
-        build_dir: build
-        config_file: .clang-tidy
-        exclude: "*.vcxproj"
-        split_workflow: true
-        apt_packages: ""
-        cmake_command: ""
-        clang_tidy_version: 18
+        version: '18'
+        file-filter: 'src/**'
+        format: 'sarif'
+        cmake: true
 
     - name: Upload clang-tidy results
       uses: actions/upload-artifact@v4
       with:
         name: clang-tidy-results
         path: |
+          results.sarif
           clang-tidy-*.txt
           clang-tidy-*.log
         retention-days: 7
